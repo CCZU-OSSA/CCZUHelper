@@ -298,3 +298,24 @@ struct ReportedPost: Codable, Identifiable {
     
     var id: String? { post.id }
 }
+
+/// 屏蔽的用户
+struct BlockedUserInfo: Identifiable, Hashable {
+    let blockedUserId: String
+    let username: String
+    let avatarUrl: String?
+    let blockedAt: Date?
+
+    var id: String { blockedUserId }
+}
+
+/// 屏蔽的帖子
+struct BlockedPostInfo: Identifiable, Hashable {
+    let postId: String
+    let title: String
+    let author: String
+    let createdAt: Date?
+    let blockedAt: Date?
+
+    var id: String { postId }
+}

@@ -29,6 +29,7 @@ typealias PostDetailPlatformImage = UIImage
 #endif
 
 struct PostDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var displayScale
     @Environment(\.modelContext) private var modelContext
@@ -57,6 +58,13 @@ struct PostDetailView: View {
     @State private var canSummarizeOnDevice = false
     @State private var isCheckingSummaryAvailability = false
     @State private var showReportSheet = false
+    @State private var showReportUserSheet = false
+    @State private var showModerationActions = false
+    @State private var showBlockUserConfirm = false
+    @State private var showBlockPostConfirm = false
+    @State private var showDeletePostConfirm = false
+    @State private var showModerationError = false
+    @State private var moderationErrorMessage = ""
     @State private var showImageShareSheet = false
     @State private var imageShareItems: [Any] = []
     @State private var showImageActionResult = false
@@ -72,6 +80,27 @@ struct PostDetailView: View {
     
     private var currentUserId: String? {
         authViewModel.session?.user.id.uuidString
+    }
+
+    private var canModerateAuthor: Bool {
+        guard let authorId = post.authorId, let currentUserId else { return false }
+        return authorId != currentUserId
+    }
+
+    private var moderationTargetName: String {
+        post.author.isEmpty ? "该用户" : post.author
+    }
+
+    private var isOwnPost: Bool {
+        guard let currentUserId else { return false }
+        if let authorId = post.authorId, authorId == currentUserId {
+            return true
+        }
+        // 兼容历史本地数据：authorId 可能存的是用户名而非 UUID
+        if let authorId = post.authorId, let username = settings.username, authorId == username {
+            return true
+        }
+        return false
     }
     
     private func checkLikeStatus() {
@@ -200,8 +229,10 @@ struct PostDetailView: View {
             likes: post.likes,
             comments: post.comments,
             isAuthenticated: authViewModel.isAuthenticated,
+            isOwnPost: isOwnPost,
             onLike: { toggleLike() },
-            onReport: { showReportSheet = true },
+            onModeration: { showModerationActions = true },
+            onDeletePost: { showDeletePostConfirm = true },
             onRequireLogin: { showLoginPrompt = true }
         )
     }
@@ -300,6 +331,11 @@ struct PostDetailView: View {
             summaryText = nil
             summarizeError = nil
             ImageCache.default.clearMemoryCache()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .teahouseUserBlocked)) { notification in
+            guard let blockedId = notification.object as? String,
+                  blockedId == post.authorId else { return }
+            dismiss()
         }
         .navigationTitle(post.category ?? "teahouse.post.default_title".localized)
         .toolbar {
@@ -412,9 +448,60 @@ struct PostDetailView: View {
         } message: { _ in
             Text("teahouse.comment.delete_message".localized)
         }
+        .alert("user_posts.delete_post.title".localized, isPresented: $showDeletePostConfirm) {
+            Button("common.cancel".localized, role: .cancel) { }
+            Button("common.delete".localized, role: .destructive) {
+                deleteCurrentPost()
+            }
+        } message: {
+            Text(String(format: "user_posts.delete_confirm_message".localized, post.title))
+        }
+        .alert("屏蔽用户", isPresented: $showBlockUserConfirm) {
+            Button("取消", role: .cancel) { }
+            Button("确认屏蔽", role: .destructive) {
+                blockAuthor()
+            }
+        } message: {
+            Text("确认屏蔽 \(moderationTargetName)？屏蔽后你将不会再看到该用户的帖子和评论。")
+        }
+        .alert("屏蔽帖子", isPresented: $showBlockPostConfirm) {
+            Button("取消", role: .cancel) { }
+            Button("确认屏蔽", role: .destructive) {
+                blockCurrentPost()
+            }
+        } message: {
+            Text("确认屏蔽该帖子？屏蔽后此帖子将不再显示。")
+        }
+        .alert("操作失败", isPresented: $showModerationError) {
+            Button("确定", role: .cancel) { }
+        } message: {
+            Text(moderationErrorMessage)
+        }
+        .confirmationDialog("更多操作", isPresented: $showModerationActions, titleVisibility: .visible) {
+            Button("举报帖子") {
+                showReportSheet = true
+            }
+            if canModerateAuthor {
+                Button("举报用户") {
+                    showReportUserSheet = true
+                }
+                Button("屏蔽用户", role: .destructive) {
+                    showBlockUserConfirm = true
+                }
+            }
+            Button("屏蔽帖子", role: .destructive) {
+                showBlockPostConfirm = true
+            }
+            Button("取消", role: .cancel) { }
+        }
         .sheet(isPresented: $showReportSheet) {
             ReportPostView(postId: post.id, postTitle: post.title)
                 .environmentObject(authViewModel)
+        }
+        .sheet(isPresented: $showReportUserSheet) {
+            if let authorId = post.authorId {
+                ReportUserView(userId: authorId, username: moderationTargetName)
+            }
         }
 #if os(macOS)
         .frame(minWidth: 700, minHeight: 620)
@@ -654,5 +741,69 @@ struct PostDetailView: View {
             self.showSummarySheet = true
         }
         isSummarizing = false
+    }
+
+    private func blockAuthor() {
+        guard let authorId = post.authorId else { return }
+
+        Task {
+            do {
+                try await teahouseService.blockUser(blockedId: authorId)
+                await MainActor.run {
+                    dismiss()
+                }
+            } catch AppError.notAuthenticated {
+                await MainActor.run {
+                    moderationErrorMessage = "请先登录后再操作"
+                    showModerationError = true
+                }
+            } catch {
+                await MainActor.run {
+                    moderationErrorMessage = error.localizedDescription
+                    showModerationError = true
+                }
+            }
+        }
+    }
+
+    private func deleteCurrentPost() {
+        guard isOwnPost else { return }
+
+        Task {
+            do {
+                try await teahouseService.deletePost(postId: post.id)
+                await MainActor.run {
+                    modelContext.delete(post)
+                    try? modelContext.save()
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    moderationErrorMessage = error.localizedDescription
+                    showModerationError = true
+                }
+            }
+        }
+    }
+
+    private func blockCurrentPost() {
+        Task {
+            do {
+                try await teahouseService.blockPost(postId: post.id)
+                await MainActor.run {
+                    dismiss()
+                }
+            } catch AppError.notAuthenticated {
+                await MainActor.run {
+                    moderationErrorMessage = "请先登录后再操作"
+                    showModerationError = true
+                }
+            } catch {
+                await MainActor.run {
+                    moderationErrorMessage = error.localizedDescription
+                    showModerationError = true
+                }
+            }
+        }
     }
 }

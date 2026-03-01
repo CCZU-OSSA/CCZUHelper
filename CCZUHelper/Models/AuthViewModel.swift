@@ -41,6 +41,9 @@ class AuthViewModel: ObservableObject {
         authStateTask = Task {
             for await (_, session) in supabase.auth.authStateChanges {
                 self.session = session
+                if session != nil {
+                    await DeviceTokenSyncManager.syncDeviceTokenIfPossible()
+                }
             }
         }
     }
@@ -58,6 +61,7 @@ class AuthViewModel: ObservableObject {
                 email: email,
                 password: password
             )
+            await DeviceTokenSyncManager.syncDeviceTokenIfPossible()
         } catch {
             // 静默失败，清除无效凭据
             clearCredentials()
@@ -85,6 +89,7 @@ class AuthViewModel: ObservableObject {
             self.session = response.session
             // 保存凭据
             saveCredentials(email: email, password: password)
+            await DeviceTokenSyncManager.syncDeviceTokenIfPossible()
         } catch {
             let errDesc = error.localizedDescription.lowercased()
             if errDesc.contains("403") || errDesc.contains("forbidden") {
@@ -108,6 +113,7 @@ class AuthViewModel: ObservableObject {
             )
             // 保存凭据
             saveCredentials(email: email, password: password)
+            await DeviceTokenSyncManager.syncDeviceTokenIfPossible()
         } catch {
             errorMessage = error.localizedDescription
         }

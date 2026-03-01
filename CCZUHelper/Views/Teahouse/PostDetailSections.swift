@@ -127,8 +127,10 @@ struct PostDetailActionButtonsView: View {
     let likes: Int
     let comments: Int
     let isAuthenticated: Bool
+    let isOwnPost: Bool
     let onLike: () -> Void
-    let onReport: () -> Void
+    let onModeration: () -> Void
+    let onDeletePost: () -> Void
     let onRequireLogin: () -> Void
 
     var body: some View {
@@ -159,23 +161,26 @@ struct PostDetailActionButtonsView: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
 
+            Spacer()
+
             Button(action: {
                 if isAuthenticated {
-                    onReport()
+                    if isOwnPost {
+                        onDeletePost()
+                    } else {
+                        onModeration()
+                    }
                 } else {
                     onRequireLogin()
                 }
             }) {
-                Image(systemName: "exclamationmark.triangle")
+                Image(systemName: isOwnPost ? "trash" : "exclamationmark.triangle")
                     .foregroundStyle(.secondary)
             }
             #if os(macOS)
             .buttonStyle(.plain)
             #endif
-
-            Spacer()
         }
         .padding(.top, 8)
     }
 }
-

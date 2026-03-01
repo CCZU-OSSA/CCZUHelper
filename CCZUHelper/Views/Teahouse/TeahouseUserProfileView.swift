@@ -199,6 +199,13 @@ struct TeahouseUserProfileView: View {
                         } label: {
                             Label("post.my_comments".localized, systemImage: "bubble.right")
                         }
+
+                        NavigationLink {
+                            BlockedContentListView()
+                                .environmentObject(authViewModel)
+                        } label: {
+                            Label("我屏蔽的", systemImage: "hand.raised")
+                        }
                         
                         if settings.isPrivilege {
                             NavigationLink {

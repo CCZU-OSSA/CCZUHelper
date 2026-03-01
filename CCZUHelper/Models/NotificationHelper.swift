@@ -37,10 +37,21 @@ enum NotificationHelper {
         switch settings.authorizationStatus {
         case .notDetermined:
             do {
-                try await center.requestAuthorization(options: [.alert, .sound])
-            } catch {
-                print("Failed to request notification authorization: \(error)")
+                let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+                #if os(iOS)
+                if granted {
+                    await MainActor.run {
+                        UIApplication.shared.registerForRemoteNotifications()
+                    }
+                }
+                #endif
+            } catch {}
+        case .authorized, .provisional, .ephemeral:
+            #if os(iOS)
+            await MainActor.run {
+                UIApplication.shared.registerForRemoteNotifications()
             }
+            #endif
         default:
             break
         }
@@ -78,17 +89,13 @@ enum NotificationHelper {
         
         do {
             try await UNUserNotificationCenter.current().add(request)
-            print("✅ Scheduled course notification for \(courseName) at \(notificationDate)")
-        } catch {
-            print("❌ Failed to schedule course notification: \(error)")
-        }
+        } catch {}
     }
     
     /// 移除课程通知
     static func removeCourseNotification(courseId: String) async {
         let notificationId = courseNotificationPrefix + courseId
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationId])
-        print("🗑️ Removed course notification for \(courseId)")
     }
     
     /// 为所有课程安排通知
@@ -203,10 +210,7 @@ enum NotificationHelper {
         let request = UNNotificationRequest(identifier: fullId, content: content, trigger: trigger)
         do {
             try await UNUserNotificationCenter.current().add(request)
-            print("✅ Scheduled exam notification for \(title) at \(triggerDate)")
-        } catch {
-            print("❌ Failed to schedule exam notification: \(error)")
-        }
+        } catch {}
     }
     
     /// 为所有考试安排通知
@@ -292,7 +296,6 @@ enum NotificationHelper {
             .map { $0.identifier }
         center.removePendingNotificationRequests(withIdentifiers: examNotificationIds)
         center.removeDeliveredNotifications(withIdentifiers: examNotificationIds)
-        print("🗑️ Removed all exam notifications")
     }
     
     static func removeScheduledNotification(id: String) async {
@@ -311,6 +314,5 @@ enum NotificationHelper {
             .map { $0.identifier }
         center.removePendingNotificationRequests(withIdentifiers: courseNotificationIds)
         center.removeDeliveredNotifications(withIdentifiers: courseNotificationIds)
-        print("🗑️ Removed all course notifications")
     }
 }

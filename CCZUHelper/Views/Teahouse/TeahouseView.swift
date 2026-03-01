@@ -220,6 +220,16 @@ struct TeahouseView: View {
             .task {
                 await loadTeahouseContent()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .teahouseUserBlocked)) { _ in
+                Task {
+                    await loadTeahouseContent(force: true)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .teahousePostBlocked)) { _ in
+                Task {
+                    await loadTeahouseContent(force: true)
+                }
+            }
             .onAppear {
                 // 初次进入页面且未登录时弹出登录
                 if !authViewModel.isAuthenticated && !hasShownInitialLogin {

@@ -9,6 +9,11 @@ import Foundation
 import Supabase
 import Combine
 
+extension Notification.Name {
+    static let teahouseUserBlocked = Notification.Name("TeahouseUserBlocked")
+    static let teahousePostBlocked = Notification.Name("TeahousePostBlocked")
+}
+
 enum AppError: Error {
     case imageConversionFailed
     case urlGenerationFailed
@@ -59,6 +64,9 @@ class TeahouseService: ObservableObject {
         defer { isLoading = false }
         
         do {
+            let blockedUserIds = await loadBlockedUserIdsForCurrentUser()
+            let blockedPostIds = await loadBlockedPostIdsForCurrentUser()
+
             // 查询 posts_with_metadata 视图并关联 profiles
             let data = try await supabase
                 .from("posts_with_metadata")
@@ -114,7 +122,18 @@ class TeahouseService: ObservableObject {
             // 过滤掉已被封禁的帖子，普通茶楼视图不展示被封禁帖子
             let visiblePosts = fetchedPosts.filter { post in
                 guard let id = post.id else { return true }
-                return !blockedIds.contains(id)
+                if blockedIds.contains(id) {
+                    return false
+                }
+                if blockedPostIds.contains(id) {
+                    return false
+                }
+
+                if let authorId = post.post.userId, blockedUserIds.contains(authorId) {
+                    return false
+                }
+
+                return true
             }
 
             posts = visiblePosts // Update the published property
@@ -188,7 +207,13 @@ class TeahouseService: ObservableObject {
             .execute()
             .value
         
-        return response.map { resp in
+        let blockedUserIds = await loadBlockedUserIdsForCurrentUser()
+
+        return response.compactMap { resp in
+            if let userId = resp.userId, blockedUserIds.contains(userId) {
+                return nil
+            }
+
             let comment = Comment(
                 id: resp.id,
                 postId: resp.postId,
@@ -200,6 +225,102 @@ class TeahouseService: ObservableObject {
             )
             return CommentWithProfile(comment: comment, profile: resp.profiles)
         }
+    }
+
+    /// 举报用户
+    /// 说明：
+    /// - reporter_id 由数据库 auth.uid() 自动填充（若表策略已配置）
+    /// - reported_id 为被举报用户 ID
+    func reportUser(reportedId: String, reason: String, details: String? = nil) async throws {
+        guard supabase.auth.currentSession != nil else {
+            throw AppError.notAuthenticated
+        }
+
+        var payload: [String: String] = [
+            "reported_id": reportedId,
+            "reason": reason,
+        ]
+
+        let trimmed = details?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmed.isEmpty {
+            payload["details"] = trimmed
+        }
+
+        _ = try await supabase
+            .from("user_reports")
+            .insert(payload)
+            .execute()
+    }
+
+    /// 屏蔽用户
+    /// 说明：
+    /// - blocker_id 由数据库 auth.uid() 自动填充（若表策略已配置）
+    /// - blocked_id 为被屏蔽用户 ID
+    func blockUser(blockedId: String) async throws {
+        guard supabase.auth.currentSession != nil else {
+            throw AppError.notAuthenticated
+        }
+
+        let payload = ["blocked_id": blockedId]
+        do {
+            _ = try await supabase
+                .from("user_blocks")
+                .insert(payload)
+                .execute()
+        } catch {
+            let message = error.localizedDescription.lowercased()
+            let isDuplicate = message.contains("duplicate") || message.contains("unique")
+            if !isDuplicate {
+                throw error
+            }
+        }
+
+        await MainActor.run {
+            NotificationCenter.default.post(name: .teahouseUserBlocked, object: blockedId)
+        }
+    }
+
+    /// 屏蔽帖子
+    func blockPost(postId: String) async throws {
+        guard supabase.auth.currentSession != nil else {
+            throw AppError.notAuthenticated
+        }
+
+        let payload = ["post_id": postId]
+        do {
+            _ = try await supabase
+                .from("post_blocks")
+                .insert(payload)
+                .execute()
+        } catch {
+            let message = error.localizedDescription.lowercased()
+            let isDuplicate = message.contains("duplicate") || message.contains("unique")
+            if !isDuplicate {
+                throw error
+            }
+        }
+
+        await MainActor.run {
+            NotificationCenter.default.post(name: .teahousePostBlocked, object: postId)
+        }
+    }
+
+    /// 取消屏蔽用户
+    func unblockUser(blockedId: String) async throws {
+        _ = try await supabase
+            .from("user_blocks")
+            .delete()
+            .eq("blocked_id", value: blockedId)
+            .execute()
+    }
+
+    /// 取消屏蔽帖子
+    func unblockPost(postId: String) async throws {
+        _ = try await supabase
+            .from("post_blocks")
+            .delete()
+            .eq("post_id", value: postId)
+            .execute()
     }
     
     /// 创建新帖子
@@ -1052,5 +1173,191 @@ class TeahouseService: ObservableObject {
             .eq("id", value: postId)
             .execute()
     }
-}
 
+    private func loadBlockedUserIdsForCurrentUser() async -> Set<String> {
+        guard supabase.auth.currentSession != nil else {
+            return []
+        }
+
+        struct BlockedUserRow: Decodable {
+            let blockedId: String
+
+            enum CodingKeys: String, CodingKey {
+                case blockedId = "blocked_id"
+            }
+        }
+
+        do {
+            let data = try await supabase
+                .from("user_blocks")
+                .select("blocked_id")
+                .execute()
+                .data
+
+            let rows = try JSONDecoder().decode([BlockedUserRow].self, from: data)
+            return Set(rows.map(\.blockedId))
+        } catch {
+            return []
+        }
+    }
+
+    private func loadBlockedPostIdsForCurrentUser() async -> Set<String> {
+        guard supabase.auth.currentSession != nil else {
+            return []
+        }
+
+        struct BlockedPostRow: Decodable {
+            let postId: String
+
+            enum CodingKeys: String, CodingKey {
+                case postId = "post_id"
+            }
+        }
+
+        do {
+            let data = try await supabase
+                .from("post_blocks")
+                .select("post_id")
+                .execute()
+                .data
+
+            let rows = try JSONDecoder().decode([BlockedPostRow].self, from: data)
+            return Set(rows.map(\.postId))
+        } catch {
+            return []
+        }
+    }
+
+    func fetchBlockedUsers() async throws -> [BlockedUserInfo] {
+        struct UserBlockRow: Decodable {
+            let blockedId: String
+            let createdAt: Date?
+
+            enum CodingKeys: String, CodingKey {
+                case blockedId = "blocked_id"
+                case createdAt = "created_at"
+            }
+        }
+
+        struct ProfileRow: Decodable {
+            let id: String
+            let username: String?
+            let avatarUrl: String?
+
+            enum CodingKeys: String, CodingKey {
+                case id
+                case username
+                case avatarUrl = "avatar_url"
+            }
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let blockData = try await supabase
+            .from("user_blocks")
+            .select("blocked_id,created_at")
+            .order("created_at", ascending: false)
+            .execute()
+            .data
+
+        let blockRows = try decoder.decode([UserBlockRow].self, from: blockData)
+        let userIds = Array(Set(blockRows.map(\.blockedId)))
+        guard !userIds.isEmpty else { return [] }
+
+        let profileRows: [ProfileRow] = try await supabase
+            .from("profiles")
+            .select("id,username,avatar_url")
+            .in("id", values: userIds)
+            .execute()
+            .value
+
+        let profileMap = Dictionary(uniqueKeysWithValues: profileRows.map { ($0.id, $0) })
+        return blockRows.map { row in
+            let profile = profileMap[row.blockedId]
+            return BlockedUserInfo(
+                blockedUserId: row.blockedId,
+                username: profile?.username ?? "未知用户",
+                avatarUrl: profile?.avatarUrl,
+                blockedAt: row.createdAt
+            )
+        }
+    }
+
+    func fetchBlockedPosts() async throws -> [BlockedPostInfo] {
+        struct PostBlockRow: Decodable {
+            let postId: String
+            let createdAt: Date?
+
+            enum CodingKeys: String, CodingKey {
+                case postId = "post_id"
+                case createdAt = "created_at"
+            }
+        }
+
+        struct PostLiteRow: Decodable {
+            let id: String?
+            let title: String?
+            let userId: String?
+            let createdAt: Date?
+            let profile: WaterfallProfilePreview?
+
+            enum CodingKeys: String, CodingKey {
+                case id
+                case title
+                case userId = "user_id"
+                case createdAt = "created_at"
+                case profile
+            }
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let blockData = try await supabase
+            .from("post_blocks")
+            .select("post_id,created_at")
+            .order("created_at", ascending: false)
+            .execute()
+            .data
+
+        let blockRows = try decoder.decode([PostBlockRow].self, from: blockData)
+        let postIds = Array(Set(blockRows.map(\.postId)))
+        guard !postIds.isEmpty else { return [] }
+
+        let postsData = try await supabase
+            .from("posts_with_metadata")
+            .select("""
+                id,
+                title,
+                user_id,
+                created_at,
+                profile:profiles!user_id (
+                    username,
+                    avatar_url,
+                    is_privilege
+                )
+            """)
+            .in("id", values: postIds)
+            .execute()
+            .data
+
+        let postRows = try decoder.decode([PostLiteRow].self, from: postsData)
+        var postMap: [String: PostLiteRow] = [:]
+        for row in postRows {
+            guard let id = row.id else { continue }
+            postMap[id] = row
+        }
+
+        return blockRows.map { row in
+            let post = postMap[row.postId]
+            return BlockedPostInfo(
+                postId: row.postId,
+                title: post?.title ?? "已删除帖子",
+                author: post?.profile?.username ?? "未知用户",
+                createdAt: post?.createdAt,
+                blockedAt: row.createdAt
+            )
+        }
+    }
+}

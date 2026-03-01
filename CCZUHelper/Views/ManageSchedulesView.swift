@@ -503,6 +503,7 @@ struct ImportScheduleView: View {
                 
                 // 解析课表
                 let parsedCourses = CalendarParser.parseWeekMatrix(scheduleData)
+                logParsedCourses(parsedCourses)
                 
                 // 使用CourseTimeCalculator处理课程时间
                 let timeCalculator = CourseTimeCalculator()
@@ -510,6 +511,7 @@ struct ImportScheduleView: View {
                     from: parsedCourses,
                     scheduleId: UUID().uuidString  // 临时ID, 会被覆盖
                 )
+                logGeneratedCourses(courses)
                 
                 await MainActor.run {
                     // 将所有其他课表设为非活跃
@@ -657,6 +659,24 @@ struct ImportScheduleView: View {
         let currentMonth = Calendar.current.component(.month, from: Date())
         let semester = currentMonth >= 2 && currentMonth <= 7 ? "春季" : "秋季"
         return "\(currentYear)年\(semester)学期"
+    }
+
+    private func logParsedCourses(_ parsedCourses: [ParsedCourse]) {
+        print("========== [ScheduleParser] Parsed Courses ==========")
+        print("[ScheduleParser] count = \(parsedCourses.count)")
+        for (index, item) in parsedCourses.enumerated() {
+            print("[ScheduleParser][\(index + 1)] \(item.name) | teacher=\(item.teacher) | location=\(item.location) | day=\(item.dayOfWeek) | slot=\(item.timeSlot) | weeks=\(item.weeks)")
+        }
+        print("====================================================")
+    }
+
+    private func logGeneratedCourses(_ courses: [Course]) {
+        print("======== [ScheduleParser] Generated Courses =========")
+        print("[ScheduleParser] count = \(courses.count)")
+        for (index, item) in courses.enumerated() {
+            print("[ScheduleParser][\(index + 1)] \(item.name) | teacher=\(item.teacher) | location=\(item.location) | day=\(item.dayOfWeek) | slot=\(item.timeSlot) | duration=\(item.duration) | weeks=\(item.weeks)")
+        }
+        print("====================================================")
     }
     
     private func addDemoSchedule() {

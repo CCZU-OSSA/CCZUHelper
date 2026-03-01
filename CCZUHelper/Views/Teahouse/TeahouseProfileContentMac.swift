@@ -57,6 +57,16 @@ struct TeahouseProfileContentMac: View {
                             }
                             .buttonStyle(.plain)
 
+                            macRowDivider
+
+                            NavigationLink {
+                                BlockedContentListView()
+                                    .environmentObject(authViewModel)
+                            } label: {
+                                macRow(icon: "hand.raised", color: .orange, title: "我屏蔽的")
+                            }
+                            .buttonStyle(.plain)
+
                             if settings.isPrivilege {
                                 macRowDivider
 

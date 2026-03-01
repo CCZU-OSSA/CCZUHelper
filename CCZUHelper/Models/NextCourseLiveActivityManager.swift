@@ -44,14 +44,13 @@ final class NextCourseLiveActivityManager {
             let now = Date()
             let leadTime: TimeInterval = 10 * 60
 
-
-
-              // 到达开课时间后立即关闭当前活动，避免显示"正在上课"
-              for activity in Activity<NextCourseActivityAttributes>.activities {
-                  if activity.content.state.startDate <= now {
-                      await activity.end(nil, dismissalPolicy: .immediate)
-                  }
-              }
+            // 检查并关闭所有已开始或已结束的课程活动
+            for activity in Activity<NextCourseActivityAttributes>.activities {
+                // 如果课程已经开始（当前时间 >= 开始时间），立即结束活动
+                if activity.content.state.startDate <= now {
+                    await activity.end(nil, dismissalPolicy: .immediate)
+                }
+            }
 
             guard let next = findNextCourseSession(courses: courses, settings: settings, from: now) else {
                 await endAll()
@@ -83,13 +82,22 @@ final class NextCourseLiveActivityManager {
                 progressStartDate: activityStartDate
             )
 
+            // staleDate设置为课程开始时间，系统会在此时将活动标记为过时
             let content = ActivityContent(state: contentState, staleDate: next.startDate)
+            
             if let existing = Activity<NextCourseActivityAttributes>.activities.first {
+                // 更新现有活动
                 await existing.update(content)
             } else {
+                // 创建新活动
                 let attributes = NextCourseActivityAttributes(identifier: "next_course")
                 _ = try? Activity.request(attributes: attributes, content: content, pushType: nil)
             }
+            
+            // 安排后台任务在课程开始时刷新并结束活动
+            #if os(iOS)
+            LiveActivityBackgroundTaskManager.shared.scheduleBackgroundRefresh(at: next.startDate)
+            #endif
         }
     }
 
@@ -99,6 +107,11 @@ final class NextCourseLiveActivityManager {
                 await activity.end(nil, dismissalPolicy: .immediate)
             }
         }
+        
+        // 取消后台刷新任务
+        #if os(iOS)
+        LiveActivityBackgroundTaskManager.shared.cancelAllBackgroundTasks()
+        #endif
     }
 
     // MARK: - Private

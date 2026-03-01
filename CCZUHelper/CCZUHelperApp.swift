@@ -13,6 +13,9 @@ import AppIntents
 #if canImport(Intents) && !os(macOS)
 import Intents
 #endif
+#if os(iOS)
+import UIKit
+#endif
 #if canImport(StoreKit)
 import StoreKit
 #endif
@@ -27,6 +30,27 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
 }
 #endif
 
+#if os(iOS)
+final class IOSAppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        DeviceTokenSyncManager.storeToken(deviceToken)
+        Task {
+            await DeviceTokenSyncManager.syncDeviceTokenIfPossible()
+        }
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        print("⚠️ APNs 注册失败: \(error.localizedDescription)")
+    }
+}
+#endif
+
 @main
 struct CCZUHelperApp: App {
     @State private var appSettings = AppSettings()
@@ -35,6 +59,9 @@ struct CCZUHelperApp: App {
     #if os(macOS)
     @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var macAppDelegate
     @State private var settingsWindow: NSWindow?
+    #endif
+    #if os(iOS)
+    @UIApplicationDelegateAdaptor(IOSAppDelegate.self) private var iosAppDelegate
     #endif
     
     var sharedModelContainer: ModelContainer = {
@@ -126,6 +153,7 @@ struct CCZUHelperApp: App {
                     // 应用启动时初始化通知系统
                     Task {
                         await NotificationHelper.requestAuthorizationIfNeeded()
+                        await DeviceTokenSyncManager.syncDeviceTokenIfPossible()
                     }
 
                     #if canImport(Intents) && !os(macOS)
@@ -150,6 +178,11 @@ struct CCZUHelperApp: App {
                     WatchConnectivitySyncManager.shared.activate()
                     WatchConnectivitySyncManager.shared.pushLatestCoursesToWatch()
                     
+                    // 注册实时活动后台刷新任务
+                    #if os(iOS)
+                    LiveActivityBackgroundTaskManager.shared.registerBackgroundTasks()
+                    #endif
+                    
                     // 启动 StoreKit 交易监听（处理 IAP 交易更新）
                     #if canImport(StoreKit)
                     if #available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, visionOS 1.0, *) {
@@ -168,7 +201,19 @@ struct CCZUHelperApp: App {
                         ICloudSettingsSyncManager.shared.bootstrap(settings: appSettings)
                         Task {
                             _ = await MembershipManager.shared.refreshEntitlement(settings: appSettings)
+                            await DeviceTokenSyncManager.syncDeviceTokenIfPossible()
                         }
+                        
+                        // 刷新实时活动，确保过期活动被及时清理
+                        #if os(iOS) && canImport(ActivityKit)
+                        Task {
+                            let context = ModelContext(sharedModelContainer)
+                            let descriptor = FetchDescriptor<Course>()
+                            if let allCourses = try? context.fetch(descriptor) {
+                                await NextCourseLiveActivityManager.shared.refresh(courses: allCourses, settings: appSettings)
+                            }
+                        }
+                        #endif
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .watchSyncRequestReceived)) { _ in
