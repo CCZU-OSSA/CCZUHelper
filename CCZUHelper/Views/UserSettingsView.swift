@@ -138,7 +138,7 @@ struct UserSettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    if #available(iOS 26.0, *) {
+                    if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                         Button(role: .confirm) {
                             if let onDone { onDone() } else { dismiss() }
                         }
@@ -308,7 +308,7 @@ struct UserSettingsView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    if #available(iOS 26.0, *) {
+                    if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                         Button(role: .confirm) {
                             showSemesterDatePicker = false
                         }

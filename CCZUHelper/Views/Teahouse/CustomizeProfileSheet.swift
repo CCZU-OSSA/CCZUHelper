@@ -113,7 +113,7 @@ struct CustomizeProfileSheet: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    if #available(iOS 26.0, *) {
+                    if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                         Button(role: .cancel) {
                             isPresented = false
                         }
@@ -127,7 +127,7 @@ struct CustomizeProfileSheet: View {
                     if isSaving {
                         ProgressView()
                     } else {
-                        if #available(iOS 26.0, *) {
+                        if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                             Button(role: .confirm) {
                                 isSaving = true
                                 onSave(nickname.trimmingCharacters(in: .whitespacesAndNewlines), selectedAvatarImage)

@@ -118,7 +118,7 @@ struct ImageCropView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    if #available(iOS 26.0, *) {
+                    if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                         Button(role: .cancel) {
                             dismiss()
                         }
@@ -132,7 +132,7 @@ struct ImageCropView: View {
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    if #available(iOS 26.0, *) {
+                    if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                         Button(role: .confirm) {
                             cropImage()
                         }

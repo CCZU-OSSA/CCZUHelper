@@ -39,7 +39,7 @@ struct DatePickerSheet: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    if #available(iOS 26.0, *) {
+                    if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                         Button(role: .confirm) {
                             dismiss()
                         }
@@ -147,7 +147,7 @@ struct CourseDetailSheet: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    if #available(iOS 26.0, *) {
+                    if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                         Button(role: .confirm) {
                             dismiss()
                         }
@@ -314,14 +314,14 @@ struct RescheduleCourseSheet: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    if #available(iOS 26.0, *) {
+                    if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                         Button(role: .cancel) { dismiss() }
                     } else {
                         Button(NSLocalizedString("common.cancel", comment: "")) { dismiss() }
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    if #available(iOS 26.0, *) {
+                    if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                         Button(role: .confirm) {
                             applyChanges()
                             dismiss()

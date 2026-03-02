@@ -134,7 +134,7 @@ struct CourseSelectionView: View {
                 #if os(macOS)
                 if !serviceEmbeddedNavigation {
                     ToolbarItem(placement: .cancellationAction) {
-                        if #available(iOS 26.0, *) {
+                        if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                             Button(role: .cancel) {
                                 dismiss()
                             }

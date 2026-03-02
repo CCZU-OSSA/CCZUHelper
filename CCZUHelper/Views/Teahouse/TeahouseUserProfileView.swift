@@ -166,7 +166,7 @@ struct TeahouseUserProfileView: View {
             .navigationTitle("teahouse.account".localized)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    if #available(iOS 26.0, *) {
+                    if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                         Button(role: .confirm) {
                             dismiss()
                         }

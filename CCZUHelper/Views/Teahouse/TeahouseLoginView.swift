@@ -477,7 +477,7 @@ struct TeahouseLoginView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    if #available(iOS 26.0, *) {
+                    if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                         Button(role: .cancel) {
                             dismiss()
                         }
@@ -843,14 +843,14 @@ struct ProfileSetupView: View {
             .navigationTitle("profile_setup.title".localized)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    if #available(iOS 26.0, *) {
+                    if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                         Button(role: .cancel, action: onCancel)
                     } else {
                         Button("common.cancel".localized, action: onCancel)
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    if #available(iOS 26.0, *) {
+                    if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                         Button(role: .confirm) { Task { await onSubmit() } }
                             .disabled(!canSubmit)
                     } else {

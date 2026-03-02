@@ -34,7 +34,7 @@ struct iOSContentView: View {
     //@State private var showResetLoginSheet: Bool = false
     var body: some View {
         Group {
-            if #available(iOS 26.0, *) {
+            if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
                 TabView(selection: $selectedTab) {
                     Tab("tab.schedule".localized, systemImage: "calendar", value: 0) {
                         ScheduleView()
@@ -99,14 +99,23 @@ struct iOSContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .teahouseOpenPostFromPush)) { _ in
             selectedTab = 2
         }
+        .onReceive(NotificationCenter.default.publisher(for: .appQuickActionRouteReceived)) { notification in
+            guard let raw = notification.object as? String,
+                  let route = AppQuickActionRoute(rawValue: raw) else {
+                return
+            }
+            handleQuickActionRoute(route)
+        }
         .onAppear {
             consumePendingIntentRouteIfNeeded()
             consumePendingTeahousePushRouteIfNeeded()
+            consumePendingQuickActionRouteIfNeeded()
         }
         #if canImport(UIKit)
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             consumePendingIntentRouteIfNeeded()
             consumePendingTeahousePushRouteIfNeeded()
+            consumePendingQuickActionRouteIfNeeded()
         }
         #endif
     }
@@ -136,6 +145,24 @@ struct iOSContentView: View {
     private func consumePendingTeahousePushRouteIfNeeded() {
         guard TeahousePushRouteManager.hasPendingPostID() else { return }
         selectedTab = 2
+    }
+
+    private func consumePendingQuickActionRouteIfNeeded() {
+        guard let route = AppQuickActionManager.consumePendingRoute() else { return }
+        handleQuickActionRoute(route)
+    }
+
+    private func handleQuickActionRoute(_ route: AppQuickActionRoute) {
+        switch route {
+        case .schedule:
+            selectedTab = 0
+        case .grades:
+            openGradesPage()
+        case .teahouse:
+            selectedTab = 2
+        case .search:
+            selectedTab = 3
+        }
     }
 }
 
