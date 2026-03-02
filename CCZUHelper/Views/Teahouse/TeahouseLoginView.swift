@@ -477,8 +477,14 @@ struct TeahouseLoginView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("common.cancel".localized) {
-                        dismiss()
+                    if #available(iOS 26.0, *) {
+                        Button(role: .cancel) {
+                            dismiss()
+                        }
+                    } else {
+                        Button("common.cancel".localized) {
+                            dismiss()
+                        }
                     }
                 }
             }
@@ -837,11 +843,20 @@ struct ProfileSetupView: View {
             .navigationTitle("profile_setup.title".localized)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("common.cancel".localized, action: onCancel)
+                    if #available(iOS 26.0, *) {
+                        Button(role: .cancel, action: onCancel)
+                    } else {
+                        Button("common.cancel".localized, action: onCancel)
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("profile_setup.submit".localized) { Task { await onSubmit() } }
-                        .disabled(!canSubmit)
+                    if #available(iOS 26.0, *) {
+                        Button(role: .confirm) { Task { await onSubmit() } }
+                            .disabled(!canSubmit)
+                    } else {
+                        Button("profile_setup.submit".localized) { Task { await onSubmit() } }
+                            .disabled(!canSubmit)
+                    }
                 }
             }
         }

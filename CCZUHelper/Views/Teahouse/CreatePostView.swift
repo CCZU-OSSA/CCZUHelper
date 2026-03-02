@@ -57,10 +57,17 @@ struct CreatePostView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(NSLocalizedString("common.cancel", comment: "")) {
-                        dismiss()
+                    if #available(iOS 26.0, *) {
+                        Button(role: .cancel) {
+                            dismiss()
+                        }
+                        .disabled(isPosting)
+                    } else {
+                        Button(NSLocalizedString("common.cancel", comment: "")) {
+                            dismiss()
+                        }
+                        .disabled(isPosting)
                     }
-                    .disabled(isPosting)
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
@@ -72,10 +79,17 @@ struct CreatePostView: View {
                         }
                         .foregroundColor(.gray)
                     } else {
-                        Button(NSLocalizedString("create_post.publish", comment: "")) {
-                            publishPost()
+                        if #available(iOS 26.0, *) {
+                            Button(role: .confirm) {
+                                publishPost()
+                            }
+                            .disabled(!canPublish)
+                        } else {
+                            Button(NSLocalizedString("create_post.publish", comment: "")) {
+                                publishPost()
+                            }
+                            .disabled(!canPublish)
                         }
-                        .disabled(!canPublish)
                     }
                 }
             }

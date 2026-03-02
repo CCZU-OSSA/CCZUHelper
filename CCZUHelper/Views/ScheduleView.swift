@@ -340,6 +340,12 @@ struct ScheduleView: View {
             semesterStartDate: settings.semesterStartDate,
             weekStartDay: settings.weekStartDay
         )
+        let currentViewWeek = helpers.currentWeekNumber(
+            for: targetDate,
+            schedules: schedules,
+            semesterStartDate: settings.semesterStartDate,
+            weekStartDay: settings.weekStartDay
+        )
         
         // 更新Widget数据
         updateWidgetDataIfNeeded(weekOffset: weekOffset, weekCourses: weekCourses)
@@ -371,6 +377,7 @@ struct ScheduleView: View {
                             hourHeight: configuration.hourHeight,
                             settings: settings,
                             helpers: helpers,
+                            currentViewWeek: currentViewWeek,
                             overlapColumn: info.column,
                             totalColumns: info.total
                         )

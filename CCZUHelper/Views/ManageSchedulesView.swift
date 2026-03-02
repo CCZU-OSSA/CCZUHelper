@@ -440,8 +440,14 @@ struct ImportScheduleView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("common.cancel".localized) {
-                        dismiss()
+                    if #available(iOS 26.0, *) {
+                        Button(role: .cancel) {
+                            dismiss()
+                        }
+                    } else {
+                        Button("common.cancel".localized) {
+                            dismiss()
+                        }
                     }
                 }
             }

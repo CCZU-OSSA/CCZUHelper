@@ -393,7 +393,11 @@ struct PostDetailView: View {
                 #endif
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("common.close".localized) { showSummarySheet = false }
+                        if #available(iOS 26.0, *) {
+                            Button(role: .cancel) { showSummarySheet = false }
+                        } else {
+                            Button("common.close".localized) { showSummarySheet = false }
+                        }
                     }
                 }
             }

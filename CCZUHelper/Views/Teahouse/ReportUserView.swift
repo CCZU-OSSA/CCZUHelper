@@ -106,10 +106,17 @@ struct ReportUserView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") {
-                        dismiss()
+                    if #available(iOS 26.0, *) {
+                        Button(role: .cancel) {
+                            dismiss()
+                        }
+                        .disabled(isSubmitting)
+                    } else {
+                        Button("取消") {
+                            dismiss()
+                        }
+                        .disabled(isSubmitting)
                     }
-                    .disabled(isSubmitting)
                 }
             }
             .alert("提交失败", isPresented: $showError) {

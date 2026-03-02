@@ -109,8 +109,14 @@ struct TrainingPlanView: View {
                 #if os(macOS)
                 if !serviceEmbeddedNavigation {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("common.close".localized) {
-                            dismiss()
+                        if #available(iOS 26.0, *) {
+                            Button(role: .cancel) {
+                                dismiss()
+                            }
+                        } else {
+                            Button("common.close".localized) {
+                                dismiss()
+                            }
                         }
                     }
                 }

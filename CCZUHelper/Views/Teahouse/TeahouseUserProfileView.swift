@@ -166,8 +166,14 @@ struct TeahouseUserProfileView: View {
             .navigationTitle("teahouse.account".localized)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("common.done".localized) {
-                        dismiss()
+                    if #available(iOS 26.0, *) {
+                        Button(role: .confirm) {
+                            dismiss()
+                        }
+                    } else {
+                        Button("common.done".localized) {
+                            dismiss()
+                        }
                     }
                 }
             }
@@ -283,8 +289,14 @@ struct TeahouseUserProfileView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("common.done".localized) {
-                        dismiss()
+                    if #available(iOS 26.0, *) {
+                        Button(role: .confirm) {
+                            dismiss()
+                        }
+                    } else {
+                        Button("common.done".localized) {
+                            dismiss()
+                        }
                     }
                 }
             }
