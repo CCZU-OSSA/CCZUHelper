@@ -28,6 +28,7 @@ struct iOSContentView: View {
     @Environment(AppSettings.self) private var settings
     @State private var selectedTab = 0
     @State private var teahouseSearchText = ""
+    @State private var pendingGradeQuickOpen = false
     private let pendingIntentRouteKey = "intent.pending.route"
     
     @Binding var resetPasswordToken: String?
@@ -136,10 +137,9 @@ struct iOSContentView: View {
     }
 
     private func openGradesPage() {
-        selectedTab = 1
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            NotificationCenter.default.post(name: Notification.Name("IntentPresentGradeQuery"), object: nil)
-        }
+        switchToTab(1)
+        pendingGradeQuickOpen = true
+        notifyPresentGradeQueryIfNeeded()
     }
 
     private func consumePendingTeahousePushRouteIfNeeded() {
@@ -155,13 +155,32 @@ struct iOSContentView: View {
     private func handleQuickActionRoute(_ route: AppQuickActionRoute) {
         switch route {
         case .schedule:
-            selectedTab = 0
+            switchToTab(0)
         case .grades:
             openGradesPage()
         case .teahouse:
-            selectedTab = 2
-        case .search:
-            selectedTab = 3
+            switchToTab(2)
+        }
+    }
+
+    private func switchToTab(_ tab: Int) {
+        selectedTab = tab
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            selectedTab = tab
+        }
+    }
+
+    private func notifyPresentGradeQueryIfNeeded() {
+        guard pendingGradeQuickOpen, selectedTab == 1 else { return }
+        pendingGradeQuickOpen = false
+
+        // ServicesView sheet listener may not be ready immediately after tab switch.
+        // Dispatch twice to reduce missed notification during cold start / quick action launch.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            NotificationCenter.default.post(name: Notification.Name("IntentPresentGradeQuery"), object: nil)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            NotificationCenter.default.post(name: Notification.Name("IntentPresentGradeQuery"), object: nil)
         }
     }
 }

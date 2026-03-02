@@ -53,6 +53,16 @@ final class IOSAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationC
 
     func application(
         _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        let config = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        config.delegateClass = QuickActionSceneDelegate.self
+        return config
+    }
+
+    func application(
+        _ application: UIApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
         DeviceTokenSyncManager.storeToken(deviceToken)
@@ -95,12 +105,27 @@ final class IOSAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationC
     }
 
     private func handleQuickAction(_ shortcutItem: UIApplicationShortcutItem) -> Bool {
-        guard let route = AppQuickActionManager.route(from: shortcutItem) else {
-            return false
+        AppQuickActionManager.handle(shortcutItem: shortcutItem)
+    }
+}
+
+final class QuickActionSceneDelegate: NSObject, UIWindowSceneDelegate {
+    func scene(
+        _ scene: UIScene,
+        willConnectTo session: UISceneSession,
+        options connectionOptions: UIScene.ConnectionOptions
+    ) {
+        if let shortcutItem = connectionOptions.shortcutItem {
+            _ = AppQuickActionManager.handle(shortcutItem: shortcutItem)
         }
-        AppQuickActionManager.savePending(route: route)
-        AppQuickActionManager.dispatch(route: route)
-        return true
+    }
+
+    func windowScene(
+        _ windowScene: UIWindowScene,
+        performActionFor shortcutItem: UIApplicationShortcutItem,
+        completionHandler: @escaping (Bool) -> Void
+    ) {
+        completionHandler(AppQuickActionManager.handle(shortcutItem: shortcutItem))
     }
 }
 #endif

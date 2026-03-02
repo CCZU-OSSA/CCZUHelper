@@ -505,7 +505,9 @@ struct ScheduleView: View {
     /// 周偏移改变处理
     private func handleWeekOffsetChange(_ oldValue: Int, _ newValue: Int) {
         triggerHapticFeedback()
-        updateSelectedDateForWeekOffset(newValue)
+        // 注意：不要在这里调用 updateSelectedDateForWeekOffset
+        // 因为 weekOffset 可能是由用户在 DatePickerSheet 中选择一个不同周的日期触发的
+        // selectedDate 应该保持用户选择的确切日期，而不是被"纠正"到该周的开始日期
         if tabSelection != newValue { tabSelection = newValue }
     }
     

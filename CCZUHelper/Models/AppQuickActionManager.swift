@@ -18,14 +18,15 @@ enum AppQuickActionRoute: String {
     case schedule
     case grades
     case teahouse
-    case search
 }
 
 enum AppQuickActionManager {
     private static let pendingRouteKey = "quickaction.pending.route"
 
     #if os(iOS)
-    private static let typePrefix = "com.stuwang.edupal.quickaction."
+    private static var typePrefix: String {
+        "\(Bundle.main.bundleIdentifier ?? "com.stuwang.edupal").quickaction."
+    }
     #endif
 
     static func savePending(route: AppQuickActionRoute) {
@@ -46,6 +47,14 @@ enum AppQuickActionManager {
     }
 
     #if os(iOS)
+    @discardableResult
+    static func handle(shortcutItem: UIApplicationShortcutItem) -> Bool {
+        guard let route = route(from: shortcutItem) else { return false }
+        savePending(route: route)
+        dispatch(route: route)
+        return true
+    }
+
     static func configureShortcutItems() {
         UIApplication.shared.shortcutItems = [
             UIApplicationShortcutItem(
@@ -69,20 +78,27 @@ enum AppQuickActionManager {
                 icon: UIApplicationShortcutIcon(type: .message),
                 userInfo: nil
             ),
-            UIApplicationShortcutItem(
-                type: typePrefix + AppQuickActionRoute.search.rawValue,
-                localizedTitle: "tab.search".localized,
-                localizedSubtitle: nil,
-                icon: UIApplicationShortcutIcon(type: .search),
-                userInfo: nil
-            ),
         ]
     }
 
     static func route(from shortcutItem: UIApplicationShortcutItem) -> AppQuickActionRoute? {
-        guard shortcutItem.type.hasPrefix(typePrefix) else { return nil }
-        let raw = String(shortcutItem.type.dropFirst(typePrefix.count))
-        return AppQuickActionRoute(rawValue: raw)
+        let type = shortcutItem.type
+
+        if type.hasPrefix(typePrefix) {
+            let raw = String(type.dropFirst(typePrefix.count))
+            if let route = AppQuickActionRoute(rawValue: raw) {
+                return route
+            }
+        }
+
+        if let lastDot = type.lastIndex(of: ".") {
+            let suffix = String(type[type.index(after: lastDot)...])
+            if let route = AppQuickActionRoute(rawValue: suffix) {
+                return route
+            }
+        }
+
+        return AppQuickActionRoute(rawValue: type)
     }
     #endif
 }
