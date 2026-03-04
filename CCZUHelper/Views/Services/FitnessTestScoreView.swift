@@ -85,25 +85,39 @@ struct FitnessTestScoreView: View {
                 }
             }
             TextField("学号/卡号", text: $studentNum)
+                #if os(iOS) || os(tvOS) || os(visionOS)
                 .textInputAutocapitalization(.never)
+                #endif
                 .autocorrectionDisabled()
             TextField("UID", text: $uid)
+                #if os(iOS) || os(tvOS) || os(visionOS)
                 .textInputAutocapitalization(.never)
+                #endif
                 .autocorrectionDisabled()
             TextField("school_id", text: $schoolID)
+                #if os(iOS) || os(tvOS) || os(visionOS)
                 .textInputAutocapitalization(.never)
+                #endif
                 .autocorrectionDisabled()
             TextField("h5_token", text: $h5Token)
+                #if os(iOS) || os(tvOS) || os(visionOS)
                 .textInputAutocapitalization(.never)
+                #endif
                 .autocorrectionDisabled()
             TextField("PHPSESSID(可选)", text: $phpSessionID)
+                #if os(iOS) || os(tvOS) || os(visionOS)
                 .textInputAutocapitalization(.never)
+                #endif
                 .autocorrectionDisabled()
             TextField("mobileDeviceId", text: $mobileDeviceID)
+                #if os(iOS) || os(tvOS) || os(visionOS)
                 .textInputAutocapitalization(.never)
+                #endif
                 .autocorrectionDisabled()
             TextField("nonce", text: $nonce)
+                #if os(iOS) || os(tvOS) || os(visionOS)
                 .textInputAutocapitalization(.never)
+                #endif
                 .autocorrectionDisabled()
 
             Button {
