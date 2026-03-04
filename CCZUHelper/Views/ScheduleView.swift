@@ -286,14 +286,15 @@ struct ScheduleView: View {
     
     /// 日期选择按钮
     private var datePickerButton: some View {
-        Button(action: { showDatePicker = true }) {
+        let displayedDate = helpers.getDateForWeekOffset(weekOffset, baseDate: baseDate)
+        return Button(action: { showDatePicker = true }) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(helpers.yearMonthString(for: selectedDate))
+                Text(helpers.yearMonthString(for: displayedDate))
                     .font(.headline)
                     .fontWeight(.bold)
                 Text("schedule.week.format".localized(
                     with: helpers.currentWeekNumber(
-                        for: selectedDate,
+                        for: displayedDate,
                         schedules: schedules,
                         semesterStartDate: settings.semesterStartDate,
                         weekStartDay: settings.weekStartDay
@@ -513,7 +514,11 @@ struct ScheduleView: View {
     
     /// 日期选择改变处理
     private func handleSelectedDateChange(_ oldValue: Date, _ newValue: Date) {
-        let newOffset = calendar.dateComponents([.weekOfYear], from: baseDate, to: newValue).weekOfYear ?? 0
+        let newOffset = helpers.weekOffset(
+            from: baseDate,
+            to: newValue,
+            weekStartDay: settings.weekStartDay
+        )
         
         if newOffset != weekOffset {
             withAnimation {
@@ -525,13 +530,13 @@ struct ScheduleView: View {
     
     /// 周开始日改变处理
     private func handleWeekStartDayChange(_ newValue: AppSettings.WeekStartDay) {
-        // 强制刷新视图
-        let tempOffset = weekOffset
-        weekOffset = tempOffset + 1
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-            weekOffset = tempOffset
-            tabSelection = tempOffset
-        }
+        let recalculatedOffset = helpers.weekOffset(
+            from: baseDate,
+            to: selectedDate,
+            weekStartDay: newValue
+        )
+        weekOffset = recalculatedOffset
+        tabSelection = recalculatedOffset
         refreshNextCourseLiveActivity()
     }
     

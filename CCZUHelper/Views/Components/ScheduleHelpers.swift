@@ -88,6 +88,14 @@ struct ScheduleHelpers {
     func getDateForWeekOffset(_ offset: Int, baseDate: Date) -> Date {
         calendar.date(byAdding: .weekOfYear, value: offset, to: baseDate) ?? baseDate
     }
+
+    /// 根据周起始日计算两个日期之间的周偏移
+    func weekOffset(from baseDate: Date, to targetDate: Date, weekStartDay: AppSettings.WeekStartDay) -> Int {
+        let baseWeekStart = getWeekStartDateForAppSettings(for: baseDate, weekStartDay: weekStartDay)
+        let targetWeekStart = getWeekStartDateForAppSettings(for: targetDate, weekStartDay: weekStartDay)
+        let daysBetween = calendar.dateComponents([.day], from: baseWeekStart, to: targetWeekStart).day ?? 0
+        return daysBetween / 7
+    }
     
     /// 筛选当前周的课程
     func coursesForWeek(courses: [Course], date: Date, semesterStartDate: Date, weekStartDay: AppSettings.WeekStartDay) -> [Course] {
