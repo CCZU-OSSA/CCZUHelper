@@ -12,6 +12,7 @@ import Combine
 extension Notification.Name {
     static let teahouseUserBlocked = Notification.Name("TeahouseUserBlocked")
     static let teahousePostBlocked = Notification.Name("TeahousePostBlocked")
+    static let teahousePostDeleted = Notification.Name("TeahousePostDeleted")
 }
 
 enum AppError: Error {

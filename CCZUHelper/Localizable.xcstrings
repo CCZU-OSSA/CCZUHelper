@@ -302,6 +302,16 @@
         }
       }
     },
+    "%lld/%lld" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld"
+          }
+        }
+      }
+    },
     "%lld%%" : {
       "extractionState" : "manual",
       "generatesSymbol" : false,
@@ -33563,6 +33573,9 @@
           }
         }
       }
+    },
+    "Vision" : {
+
     },
     "weekday.friday" : {
       "extractionState" : "manual",

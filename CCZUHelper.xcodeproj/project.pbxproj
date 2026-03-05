@@ -27,7 +27,7 @@
 		45A0E66F2F553FBD00CABD59 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 45A0E66E2F553FBD00CABD59 /* Supabase */; };
 		45ADB57E2F55388F0074995A /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 45ADB57D2F55388F0074995A /* MarkdownUI */; };
 		45ADB58C2F5538F50074995A /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = 45ADB58B2F5538F50074995A /* Kingfisher */; };
-		45AF75BA2F5923C000D59BFE /* Mantis in Frameworks */ = {isa = PBXBuildFile; productRef = 45AF75B92F5923C000D59BFE /* Mantis */; platformFilters = (ios, ); };
+		45AF75BA2F5923C000D59BFE /* Mantis in Frameworks */ = {isa = PBXBuildFile; platformFilter = ios; productRef = 45AF75B92F5923C000D59BFE /* Mantis */; };
 		45D675952F517AFD00EF05F8 /* CCZUKit in Frameworks */ = {isa = PBXBuildFile; productRef = 45D655112F4CAD310042E429 /* CCZUKit */; };
 /* End PBXBuildFile section */
 
@@ -1676,7 +1676,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 45AF75B82F5923C000D59BFE /* XCRemoteSwiftPackageReference "Mantis" */;
 			productName = Mantis;
-			platformFilters = (ios, );
 		};
 		45D655112F4CAD310042E429 /* CCZUKit */ = {
 			isa = XCSwiftPackageProductDependency;
