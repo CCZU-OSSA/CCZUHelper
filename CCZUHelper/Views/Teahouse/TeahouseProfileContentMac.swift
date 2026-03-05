@@ -65,7 +65,7 @@ struct TeahouseProfileContentMac: View {
                                 BlockedContentListView()
                                     .environmentObject(authViewModel)
                             } label: {
-                                macRow(icon: "hand.raised", color: .orange, title: "我屏蔽的")
+                                macRow(icon: "hand.raised", color: .orange, title: "blocked_content.nav_title".localized)
                             }
                             .buttonStyle(.plain)
 
@@ -87,9 +87,9 @@ struct TeahouseProfileContentMac: View {
                 macSettingsGroup(title: "settings.notifications".localized) {
                     Toggle(isOn: $isCommentNotifyEnabled) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("评论通知")
+                            Text("teahouse.settings.comment_notify_title".localized)
                                 .font(.body)
-                            Text("接收他人评论你帖子的推送通知")
+                            Text("teahouse.settings.comment_notify_description".localized)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

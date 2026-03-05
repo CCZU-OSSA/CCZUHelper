@@ -32,7 +32,7 @@ struct PostDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var displayScale
-    @Environment(\.modelContext) private var modelContext
+    @Environment(\.modelContext) var modelContext
     @Environment(AppSettings.self) private var settings
     @EnvironmentObject private var authViewModel: AuthViewModel
     
@@ -43,36 +43,39 @@ struct PostDetailView: View {
     @State private var showLoginPrompt = false
     @State private var comments: [CommentWithProfile] = []
     @State private var isLoadingComments = false
-    @State private var selectedImageForPreview: String? = nil
+    @State private var selectedImageIndex: Int = 0
     @State private var showImagePreview = false
     @State private var isAnonymous = false
     @State private var showDeleteConfirm = false
     @State private var commentPendingDeletion: CommentWithProfile? = nil
     @State private var armedDeleteCommentIDs: Set<String> = []
 
-    @State private var isSummarizing = false
-    @State private var summaryText: String? = nil
-    @State private var showSummarySheet = false
-    @State private var summarizeError: String? = nil
+    @State var isSummarizing = false
+    @State var summaryText: String? = nil
+    @State var showSummarySheet = false
+    @State var summarizeError: String? = nil
     
-    @State private var canSummarizeOnDevice = false
-    @State private var isCheckingSummaryAvailability = false
+    @State var canSummarizeOnDevice = false
+    @State var isCheckingSummaryAvailability = false
     @State private var showReportSheet = false
     @State private var showReportUserSheet = false
-    @State private var showModerationActions = false
-    @State private var showBlockUserConfirm = false
-    @State private var showBlockPostConfirm = false
-    @State private var showDeletePostConfirm = false
-    @State private var showModerationError = false
-    @State private var moderationErrorMessage = ""
+    @State var showModerationActions = false
+    @State var showBlockUserConfirm = false
+    @State var showBlockPostConfirm = false
+    @State var showDeletePostConfirm = false
+    @State var showModerationError = false
+    @State var moderationErrorMessage = ""
     @State private var showImageShareSheet = false
     @State private var imageShareItems: [Any] = []
     @State private var showImageActionResult = false
     @State private var imageActionResultMessage = ""
     @State private var isKeyboardPresented = false
     @State private var isLiked = false
+    @State private var selectedCommentImageURL: URL? = nil
+    @State private var selectedCommentImagePreview: PostDetailPlatformImage? = nil
+    @State private var showCommentImagePicker = false
     
-    @StateObject private var teahouseService = TeahouseService()
+    @StateObject var teahouseService = TeahouseService()
     
     private var isAuthorPrivileged: Bool {
         return post.isAuthorPrivileged == true
@@ -88,10 +91,10 @@ struct PostDetailView: View {
     }
 
     private var moderationTargetName: String {
-        post.author.isEmpty ? "该用户" : post.author
+        post.author.isEmpty ? "teahouse.moderation.target_default".localized : post.author
     }
 
-    private var isOwnPost: Bool {
+    var isOwnPost: Bool {
         guard let currentUserId else { return false }
         if let authorId = post.authorId, authorId == currentUserId {
             return true
@@ -164,7 +167,7 @@ struct PostDetailView: View {
             if !post.images.isEmpty {
                 let columns = [GridItem(.adaptive(minimum: 100), spacing: 8)]
                 LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(post.images, id: \.self) { imagePath in
+                    ForEach(Array(post.images.enumerated()), id: \.offset) { index, imagePath in
                         if let url = URL(string: imagePath), !imagePath.isEmpty {
                             GeometryReader { geo in
                                 let side = geo.size.width
@@ -189,7 +192,7 @@ struct PostDetailView: View {
                             .aspectRatio(1, contentMode: .fit)
                             .contentShape(RoundedRectangle(cornerRadius: 8))
                             .onTapGesture {
-                                selectedImageForPreview = imagePath
+                                selectedImageIndex = index
                                 showImagePreview = true
                             }
                             .contextMenu {
@@ -290,7 +293,15 @@ struct PostDetailView: View {
         }
     }
     
-    var body: some View {
+    private var previewURLs: [URL] {
+        post.images.compactMap { path in
+            guard !path.isEmpty else { return nil }
+            return URL(string: path)
+        }
+    }
+
+    @ViewBuilder
+    private var rootContentView: some View {
         ZStack {
             pageBackground
                 .ignoresSafeArea()
@@ -314,8 +325,126 @@ struct PostDetailView: View {
             }
             #endif
         }
+    }
+
+    @ViewBuilder
+    private var imagePreviewSheetView: some View {
+        if !previewURLs.isEmpty {
+            ImagePreviewView(
+                urls: previewURLs,
+                initialIndex: min(max(0, selectedImageIndex), previewURLs.count - 1)
+            )
+        }
+    }
+
+    private var summarySheetView: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if let text = summaryText {
+                        Text(text)
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                    } else if let err = summarizeError {
+                        Text("teahouse.summary.failed".localized(with: err))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("teahouse.summary.no_content".localized)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("teahouse.summary.sheet_title".localized)
+            #if !os(macOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
+                        Button(role: .cancel) { showSummarySheet = false }
+                    } else {
+                        Button("common.close".localized) { showSummarySheet = false }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func commentPreviewImageView(_ preview: PostDetailPlatformImage) -> some View {
+        #if canImport(UIKit)
+        Image(uiImage: preview)
+            .resizable()
+            .scaledToFill()
+            .frame(width: 92, height: 92)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+            )
+        #elseif canImport(AppKit)
+        Image(nsImage: preview)
+            .resizable()
+            .scaledToFill()
+            .frame(width: 92, height: 92)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+            )
+        #endif
+    }
+
+    private var commentInputBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let preview = selectedCommentImagePreview {
+                ZStack(alignment: .topTrailing) {
+                    commentPreviewImageView(preview)
+
+                    Button {
+                        clearSelectedCommentImage()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.white, .black.opacity(0.55))
+                    }
+                    .offset(x: 6, y: -6)
+                }
+                .padding(.leading, 8)
+            }
+
+            SeparateMessageInputField(
+                text: $commentText,
+                isAnonymous: $isAnonymous,
+                hasSelectedImage: selectedCommentImageURL != nil,
+                isLoading: isSubmitting,
+                isAuthenticated: authViewModel.isAuthenticated,
+                onSend: { submitComment() },
+                onSelectImage: {
+                    showCommentImagePicker = true
+                },
+                onRemoveImage: {
+                    clearSelectedCommentImage()
+                },
+                onRequireLogin: { showLoginPrompt = true }
+            )
+        }
+        #if os(macOS)
+        .frame(maxWidth: 700)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 14)
+        #else
+        .frame(maxWidth: 700)
+        .padding(.horizontal, 18)
+        .padding(.bottom, isKeyboardPresented ? 8 : -4)
+        #endif
+    }
+
+    var body: some View {
+        rootContentView
         .onAppear {
-            selectedImageForPreview = nil
+            selectedImageIndex = 0
             loadComments()
             updateSummarizationAvailability()
             checkLikeStatus()
@@ -327,7 +456,7 @@ struct PostDetailView: View {
             checkLikeStatus()
         }
         .onDisappear {
-            selectedImageForPreview = nil
+            selectedImageIndex = 0
             summaryText = nil
             summarizeError = nil
             ImageCache.default.clearMemoryCache()
@@ -363,44 +492,20 @@ struct PostDetailView: View {
         }
 #endif
         .sheet(isPresented: $showImagePreview, onDismiss: {
-            selectedImageForPreview = nil
+            selectedImageIndex = 0
         }) {
-            if let imagePath = selectedImageForPreview, let url = URL(string: imagePath) {
-                ImagePreviewView(url: url)
-            }
+            imagePreviewSheetView
         }
         .sheet(isPresented: $showSummarySheet) {
-            NavigationStack {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        if let text = summaryText {
-                            Text(text)
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                        } else if let err = summarizeError {
-                            Text("teahouse.summary.failed".localized(with: err))
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text("teahouse.summary.no_content".localized)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding()
-                }
-                .navigationTitle("teahouse.summary.sheet_title".localized)
-                #if !os(macOS)
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        if #available(iOS 26.0, macOS 26.0, visionOS 2, *) {
-                            Button(role: .cancel) { showSummarySheet = false }
-                        } else {
-                            Button("common.close".localized) { showSummarySheet = false }
-                        }
-                    }
-                }
-            }
+            summarySheetView
+        }
+        .sheet(isPresented: $showCommentImagePicker) {
+            ImagePickerView(completion: { url in
+                guard let url else { return }
+                selectedCommentImageURL = url
+                selectedCommentImagePreview = PostDetailPlatformImage(contentsOfFile: url.path)
+                showCommentImagePicker = false
+            }, filePrefix: "temp_comment")
         }
         .contentShape(Rectangle())
         .onTapGesture {
@@ -410,23 +515,7 @@ struct PostDetailView: View {
         .toolbar(.hidden, for: .tabBar)
         #endif
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            SeparateMessageInputField(
-                text: $commentText,
-                isAnonymous: $isAnonymous,
-                isLoading: isSubmitting,
-                isAuthenticated: authViewModel.isAuthenticated,
-                onSend: { submitComment() },
-                onRequireLogin: { showLoginPrompt = true }
-            )
-            #if os(macOS)
-            .frame(maxWidth: 700)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 14)
-            #else
-            .frame(maxWidth: 700)
-            .padding(.horizontal, 18)
-            .padding(.bottom, isKeyboardPresented ? 8 : -4)
-            #endif
+            commentInputBar
         }
         #if canImport(UIKit)
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
@@ -460,43 +549,43 @@ struct PostDetailView: View {
         } message: {
             Text(String(format: "user_posts.delete_confirm_message".localized, post.title))
         }
-        .alert("屏蔽用户", isPresented: $showBlockUserConfirm) {
-            Button("取消", role: .cancel) { }
-            Button("确认屏蔽", role: .destructive) {
+        .alert("teahouse.moderation.block_user_title".localized, isPresented: $showBlockUserConfirm) {
+            Button("common.cancel".localized, role: .cancel) { }
+            Button("teahouse.moderation.block_user_confirm".localized, role: .destructive) {
                 blockAuthor()
             }
         } message: {
-            Text("确认屏蔽 \(moderationTargetName)？屏蔽后你将不会再看到该用户的帖子和评论。")
+            Text(String(format: "teahouse.moderation.block_user_message".localized, moderationTargetName))
         }
-        .alert("屏蔽帖子", isPresented: $showBlockPostConfirm) {
-            Button("取消", role: .cancel) { }
-            Button("确认屏蔽", role: .destructive) {
+        .alert("teahouse.moderation.block_post_title".localized, isPresented: $showBlockPostConfirm) {
+            Button("common.cancel".localized, role: .cancel) { }
+            Button("teahouse.moderation.block_post_confirm".localized, role: .destructive) {
                 blockCurrentPost()
             }
         } message: {
-            Text("确认屏蔽该帖子？屏蔽后此帖子将不再显示。")
+            Text("teahouse.moderation.block_post_message".localized)
         }
-        .alert("操作失败", isPresented: $showModerationError) {
-            Button("确定", role: .cancel) { }
+        .alert("teahouse.moderation.error_title".localized, isPresented: $showModerationError) {
+            Button("common.ok".localized, role: .cancel) { }
         } message: {
             Text(moderationErrorMessage)
         }
-        .confirmationDialog("更多操作", isPresented: $showModerationActions, titleVisibility: .visible) {
-            Button("举报帖子") {
+        .confirmationDialog("teahouse.moderation.more_actions".localized, isPresented: $showModerationActions, titleVisibility: .visible) {
+            Button("teahouse.moderation.report_post".localized) {
                 showReportSheet = true
             }
             if canModerateAuthor {
-                Button("举报用户") {
+                Button("teahouse.moderation.report_user".localized) {
                     showReportUserSheet = true
                 }
-                Button("屏蔽用户", role: .destructive) {
+                Button("teahouse.moderation.block_user".localized, role: .destructive) {
                     showBlockUserConfirm = true
                 }
             }
-            Button("屏蔽帖子", role: .destructive) {
+            Button("teahouse.moderation.block_post".localized, role: .destructive) {
                 showBlockPostConfirm = true
             }
-            Button("取消", role: .cancel) { }
+            Button("common.cancel".localized, role: .cancel) { }
         }
         .sheet(isPresented: $showReportSheet) {
             ReportPostView(postId: post.id, postTitle: post.title)
@@ -530,7 +619,7 @@ struct PostDetailView: View {
                     post.likes = max(0, post.likes + delta)
                 }
             } catch {
-                print("点赞操作失败: \(error.localizedDescription)")
+                print("teahouse.like.error".localized(with: error.localizedDescription))
             }
 
             DispatchQueue.main.async {
@@ -561,7 +650,7 @@ struct PostDetailView: View {
                 }
             } catch {
                 await MainActor.run {
-                    print("❌ 删除评论失败: \(error.localizedDescription)")
+                    print("teahouse.comment.delete_error".localized(with: error.localizedDescription))
                     showDeleteConfirm = false
                     commentPendingDeletion = nil
                 }
@@ -583,7 +672,7 @@ struct PostDetailView: View {
                 }
             } catch {
                 await MainActor.run {
-                    print("❌ 加载评论失败: \(error.localizedDescription)")
+                    print("teahouse.comment.load_error".localized(with: error.localizedDescription))
                     isLoadingComments = false
                 }
             }
@@ -591,7 +680,7 @@ struct PostDetailView: View {
     }
     
     private func submitComment() {
-        guard !commentText.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty else {
+        guard !commentText.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty || selectedCommentImageURL != nil else {
             return
         }
         guard authViewModel.isAuthenticated else {
@@ -604,15 +693,22 @@ struct PostDetailView: View {
 
         isSubmitting = true
         let commentContent = commentText
+        let commentImageURL = selectedCommentImageURL
         commentText = ""
+        clearSelectedCommentImage()
         
         Task {
             do {
+                var uploadedPhotoURL: String? = nil
+                if let localImageURL = commentImageURL {
+                    uploadedPhotoURL = try await ImageUploadService.uploadImage(at: localImageURL)
+                }
                 try await PostDetailOperations.submitComment(
                     postId: post.id,
                     userId: userId,
                     content: commentContent,
                     isAnonymous: isAnonymous,
+                    photoUrl: uploadedPhotoURL
                 )
                 await MainActor.run {
                     post.comments += 1
@@ -623,9 +719,18 @@ struct PostDetailView: View {
                 await MainActor.run {
                     isSubmitting = false
                     commentText = commentContent
+                    if let localImageURL = commentImageURL {
+                        selectedCommentImageURL = localImageURL
+                        selectedCommentImagePreview = PostDetailPlatformImage(contentsOfFile: localImageURL.path)
+                    }
                 }
             }
         }
+    }
+
+    private func clearSelectedCommentImage() {
+        selectedCommentImageURL = nil
+        selectedCommentImagePreview = nil
     }
     
     private func hideKeyboard() {
@@ -670,144 +775,5 @@ struct PostDetailView: View {
             }
         }
 #endif
-    }
-    
-    private func updateSummarizationAvailability() {
-        if let cached = OnDeviceSummaryAvailabilityCache.cachedAvailability() {
-            self.canSummarizeOnDevice = cached
-            if !OnDeviceSummaryAvailabilityCache.shouldRefresh() { return }
-        }
-        if isCheckingSummaryAvailability { return }
-        isCheckingSummaryAvailability = true
-
-        // TODO: 如果 SDK 提供了明确的 availability 枚举类型，例如：
-        // switch model.availability {
-        // case .available: self.canSummarizeOnDevice = true
-        // case .unavailable(.deviceNotEligible): self.canSummarizeOnDevice = false
-        // case .unavailable(.appleIntelligenceNotEnabled): self.canSummarizeOnDevice = false
-        // case .unavailable(.modelNotReady): self.canSummarizeOnDevice = false
-        // case .unavailable(_): self.canSummarizeOnDevice = false
-        // }
-        Task { @MainActor in
-            #if canImport(FoundationModels)
-            if #available(iOS 26.0, macOS 26.0, *) {
-                let instructions = "teahouse.summary.instructions".localized
-                let session = LanguageModelSession(instructions: instructions)
-
-                // Use a lightweight probe to avoid reflection on FoundationModels internals.
-                do {
-                    _ = try await session.respond(to: "ping")
-                    self.canSummarizeOnDevice = true
-                    OnDeviceSummaryAvailabilityCache.save(true)
-                } catch {
-                    self.canSummarizeOnDevice = false
-                    OnDeviceSummaryAvailabilityCache.save(false)
-                }
-            } else {
-                self.canSummarizeOnDevice = false
-                OnDeviceSummaryAvailabilityCache.save(false)
-            }
-            #else
-            self.canSummarizeOnDevice = false
-            OnDeviceSummaryAvailabilityCache.save(false)
-            #endif
-            self.isCheckingSummaryAvailability = false
-        }
-    }
-    
-    @MainActor
-    private func summarizePost() async {
-        guard !isSummarizing else { return }
-        isSummarizing = true
-        summarizeError = nil
-        summaryText = nil
-        // Build the prompt from the post content and title
-        let title = post.title
-        let content = post.content
-        let fullText = "teahouse.summary.prompt".localized(with: title, content)
-        if #available(iOS 26.0, macOS 26.0, *) {
-#if canImport(FoundationModels)
-    do {
-        let generator = try await TextGenerator.makeDefault()
-        let request = TextGenerationRequest(prompt: fullText, maxTokens: 200)
-        let response = try await generator.generate(request)
-        self.summaryText = response.text
-    } catch {
-        self.summarizeError = error.localizedDescription
-    }
-#else
-    // Fallback: 简单截断作为示例
-    self.summaryText = "teahouse.summary.fallback_prefix".localized + String(fullText.prefix(120))
-#endif
-            self.showSummarySheet = true
-        } else {
-            self.summarizeError = "teahouse.summary.unsupported_system".localized
-            self.showSummarySheet = true
-        }
-        isSummarizing = false
-    }
-
-    private func blockAuthor() {
-        guard let authorId = post.authorId else { return }
-
-        Task {
-            do {
-                try await teahouseService.blockUser(blockedId: authorId)
-                await MainActor.run {
-                    dismiss()
-                }
-            } catch AppError.notAuthenticated {
-                await MainActor.run {
-                    moderationErrorMessage = "请先登录后再操作"
-                    showModerationError = true
-                }
-            } catch {
-                await MainActor.run {
-                    moderationErrorMessage = error.localizedDescription
-                    showModerationError = true
-                }
-            }
-        }
-    }
-
-    private func deleteCurrentPost() {
-        guard isOwnPost else { return }
-
-        Task {
-            do {
-                try await teahouseService.deletePost(postId: post.id)
-                await MainActor.run {
-                    modelContext.delete(post)
-                    try? modelContext.save()
-                    dismiss()
-                }
-            } catch {
-                await MainActor.run {
-                    moderationErrorMessage = error.localizedDescription
-                    showModerationError = true
-                }
-            }
-        }
-    }
-
-    private func blockCurrentPost() {
-        Task {
-            do {
-                try await teahouseService.blockPost(postId: post.id)
-                await MainActor.run {
-                    dismiss()
-                }
-            } catch AppError.notAuthenticated {
-                await MainActor.run {
-                    moderationErrorMessage = "请先登录后再操作"
-                    showModerationError = true
-                }
-            } catch {
-                await MainActor.run {
-                    moderationErrorMessage = error.localizedDescription
-                    showModerationError = true
-                }
-            }
-        }
     }
 }

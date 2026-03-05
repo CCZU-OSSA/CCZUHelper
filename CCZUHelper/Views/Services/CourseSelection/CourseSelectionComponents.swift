@@ -56,7 +56,7 @@ struct CourseSelectionRow: View {
 
                     HStack(spacing: 12) {
                         Label(course.raw.teacherName, systemImage: "person")
-                        Label(String(format: NSLocalizedString("course.credits_format", comment: "%.1f 学分"), course.raw.credits), systemImage: "book")
+                        Label("course.credits_format".localized(with: course.raw.credits), systemImage: "book")
                         Label(course.raw.examTypeName, systemImage: "list.bullet")
                     }
                     .font(.caption)

@@ -220,7 +220,7 @@ struct TeahouseUserProfileView: View {
                             BlockedContentListView()
                                 .environmentObject(authViewModel)
                         } label: {
-                            Label("我屏蔽的", systemImage: "hand.raised")
+                            Label("blocked_content.nav_title".localized, systemImage: "hand.raised")
                         }
                         
                         if settings.isPrivilege {
@@ -238,8 +238,8 @@ struct TeahouseUserProfileView: View {
                 Section(header: Text("settings.notifications".localized)) {
                     Toggle(isOn: $isCommentNotifyEnabled) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("评论通知")
-                            Text("接收他人评论你帖子的推送通知")
+                            Text("teahouse.settings.comment_notify_title".localized)
+                            Text("teahouse.settings.comment_notify_description".localized)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
