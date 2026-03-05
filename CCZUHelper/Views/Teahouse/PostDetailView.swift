@@ -88,7 +88,7 @@ struct PostDetailView: View {
     }
 
     private var moderationTargetName: String {
-        post.author.isEmpty ? "该用户" : post.author
+        post.author.isEmpty ? "teahouse.moderation.target_default".localized : post.author
     }
 
     private var isOwnPost: Bool {
@@ -460,43 +460,43 @@ struct PostDetailView: View {
         } message: {
             Text(String(format: "user_posts.delete_confirm_message".localized, post.title))
         }
-        .alert("屏蔽用户", isPresented: $showBlockUserConfirm) {
-            Button("取消", role: .cancel) { }
-            Button("确认屏蔽", role: .destructive) {
+        .alert("teahouse.moderation.block_user_title".localized, isPresented: $showBlockUserConfirm) {
+            Button("common.cancel".localized, role: .cancel) { }
+            Button("teahouse.moderation.block_user_confirm".localized, role: .destructive) {
                 blockAuthor()
             }
         } message: {
-            Text("确认屏蔽 \(moderationTargetName)？屏蔽后你将不会再看到该用户的帖子和评论。")
+            Text(String(format: "teahouse.moderation.block_user_message".localized, moderationTargetName))
         }
-        .alert("屏蔽帖子", isPresented: $showBlockPostConfirm) {
-            Button("取消", role: .cancel) { }
-            Button("确认屏蔽", role: .destructive) {
+        .alert("teahouse.moderation.block_post_title".localized, isPresented: $showBlockPostConfirm) {
+            Button("common.cancel".localized, role: .cancel) { }
+            Button("teahouse.moderation.block_post_confirm".localized, role: .destructive) {
                 blockCurrentPost()
             }
         } message: {
-            Text("确认屏蔽该帖子？屏蔽后此帖子将不再显示。")
+            Text("teahouse.moderation.block_post_message".localized)
         }
-        .alert("操作失败", isPresented: $showModerationError) {
-            Button("确定", role: .cancel) { }
+        .alert("teahouse.moderation.error_title".localized, isPresented: $showModerationError) {
+            Button("common.ok".localized, role: .cancel) { }
         } message: {
             Text(moderationErrorMessage)
         }
-        .confirmationDialog("更多操作", isPresented: $showModerationActions, titleVisibility: .visible) {
-            Button("举报帖子") {
+        .confirmationDialog("teahouse.moderation.more_actions".localized, isPresented: $showModerationActions, titleVisibility: .visible) {
+            Button("teahouse.moderation.report_post".localized) {
                 showReportSheet = true
             }
             if canModerateAuthor {
-                Button("举报用户") {
+                Button("teahouse.moderation.report_user".localized) {
                     showReportUserSheet = true
                 }
-                Button("屏蔽用户", role: .destructive) {
+                Button("teahouse.moderation.block_user".localized, role: .destructive) {
                     showBlockUserConfirm = true
                 }
             }
-            Button("屏蔽帖子", role: .destructive) {
+            Button("teahouse.moderation.block_post".localized, role: .destructive) {
                 showBlockPostConfirm = true
             }
-            Button("取消", role: .cancel) { }
+            Button("common.cancel".localized, role: .cancel) { }
         }
         .sheet(isPresented: $showReportSheet) {
             ReportPostView(postId: post.id, postTitle: post.title)
@@ -530,7 +530,7 @@ struct PostDetailView: View {
                     post.likes = max(0, post.likes + delta)
                 }
             } catch {
-                print("点赞操作失败: \(error.localizedDescription)")
+                print("teahouse.like.error".localized(with: error.localizedDescription))
             }
 
             DispatchQueue.main.async {
@@ -561,7 +561,7 @@ struct PostDetailView: View {
                 }
             } catch {
                 await MainActor.run {
-                    print("❌ 删除评论失败: \(error.localizedDescription)")
+                    print("teahouse.comment.delete_error".localized(with: error.localizedDescription))
                     showDeleteConfirm = false
                     commentPendingDeletion = nil
                 }
@@ -583,7 +583,7 @@ struct PostDetailView: View {
                 }
             } catch {
                 await MainActor.run {
-                    print("❌ 加载评论失败: \(error.localizedDescription)")
+                    print("teahouse.comment.load_error".localized(with: error.localizedDescription))
                     isLoadingComments = false
                 }
             }
@@ -758,7 +758,7 @@ struct PostDetailView: View {
                 }
             } catch AppError.notAuthenticated {
                 await MainActor.run {
-                    moderationErrorMessage = "请先登录后再操作"
+                    moderationErrorMessage = "teahouse.moderation.not_authenticated".localized
                     showModerationError = true
                 }
             } catch {
@@ -799,7 +799,7 @@ struct PostDetailView: View {
                 }
             } catch AppError.notAuthenticated {
                 await MainActor.run {
-                    moderationErrorMessage = "请先登录后再操作"
+                    moderationErrorMessage = "teahouse.moderation.not_authenticated".localized
                     showModerationError = true
                 }
             } catch {

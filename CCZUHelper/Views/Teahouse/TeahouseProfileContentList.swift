@@ -53,7 +53,7 @@ struct TeahouseProfileContentList: View {
                             BlockedContentListView()
                                 .environmentObject(authViewModel)
                         } label: {
-                            Label("我屏蔽的", systemImage: "hand.raised")
+                            Label("blocked_content.nav_title".localized, systemImage: "hand.raised")
                         }
                         
                         // 管理员功能：待处理举报

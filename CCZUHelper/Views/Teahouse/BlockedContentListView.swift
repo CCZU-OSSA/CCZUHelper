@@ -17,8 +17,8 @@ struct BlockedContentListView: View {
 
         var title: String {
             switch self {
-            case .users: return "屏蔽用户"
-            case .posts: return "屏蔽帖子"
+            case .users: return "blocked_content.segment.users".localized
+            case .posts: return "blocked_content.segment.posts".localized
             }
         }
     }
@@ -33,7 +33,7 @@ struct BlockedContentListView: View {
     var body: some View {
         List {
             Section {
-                Picker("屏蔽类型", selection: $selectedSegment) {
+                Picker("blocked_content.picker_label".localized, selection: $selectedSegment) {
                     ForEach(Segment.allCases) { segment in
                         Text(segment.title).tag(segment)
                     }
@@ -54,12 +54,12 @@ struct BlockedContentListView: View {
             } else if let errorMessage {
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("加载失败")
+                        Text("blocked_content.load_failed".localized)
                             .font(.headline)
                         Text(errorMessage)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
-                        Button("重试") {
+                        Button("common.retry".localized) {
                             Task { await loadData() }
                         }
                     }
@@ -74,7 +74,7 @@ struct BlockedContentListView: View {
                 }
             }
         }
-        .navigationTitle("我屏蔽的")
+        .navigationTitle("blocked_content.nav_title".localized)
         #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -87,9 +87,9 @@ struct BlockedContentListView: View {
     }
 
     private var usersSection: some View {
-        Section("屏蔽用户") {
+        Section("blocked_content.section.users".localized) {
             if blockedUsers.isEmpty {
-                Text("暂无屏蔽用户")
+                Text("blocked_content.empty.users".localized)
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(blockedUsers) { user in
@@ -104,7 +104,7 @@ struct BlockedContentListView: View {
                                 .lineLimit(1)
                         }
                         Spacer()
-                        Button("取消屏蔽") {
+                        Button("blocked_content.action.unblock".localized) {
                             Task { await unblockUser(user) }
                         }
                         .buttonStyle(.bordered)
@@ -116,9 +116,9 @@ struct BlockedContentListView: View {
     }
 
     private var postsSection: some View {
-        Section("屏蔽帖子") {
+        Section("blocked_content.section.posts".localized) {
             if blockedPosts.isEmpty {
-                Text("暂无屏蔽帖子")
+                Text("blocked_content.empty.posts".localized)
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(blockedPosts) { post in
@@ -133,13 +133,13 @@ struct BlockedContentListView: View {
                             Text(post.title)
                                 .font(.body)
                                 .lineLimit(1)
-                            Text("作者：\(post.author)")
+                            Text(String(format: "blocked_content.post.author".localized, post.author))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         }
                         Spacer()
-                        Button("取消屏蔽") {
+                        Button("blocked_content.action.unblock".localized) {
                             Task { await unblockPost(post) }
                         }
                         .buttonStyle(.bordered)

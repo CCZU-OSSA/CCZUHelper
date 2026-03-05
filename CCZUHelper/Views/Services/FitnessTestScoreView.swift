@@ -42,7 +42,7 @@ struct FitnessTestScoreView: View {
             #else
             .listStyle(.inset)
             #endif
-            .navigationTitle("体育成绩")
+            .navigationTitle("fitness.score.title".localized)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -78,13 +78,13 @@ struct FitnessTestScoreView: View {
     }
 
     private var requestConfigSection: some View {
-        Section("查询配置") {
-            Picker("学年", selection: $selectedYear) {
+        Section("fitness.score.config_section".localized) {
+            Picker("fitness.score.year_label".localized, selection: $selectedYear) {
                 ForEach(selectableYears, id: \.self) { year in
                     Text("\(year)").tag(year)
                 }
             }
-            TextField("学号/卡号", text: $studentNum)
+            TextField("fitness.score.student_num_label".localized, text: $studentNum)
                 #if os(iOS) || os(tvOS) || os(visionOS)
                 .textInputAutocapitalization(.never)
                 #endif
@@ -104,7 +104,7 @@ struct FitnessTestScoreView: View {
                 .textInputAutocapitalization(.never)
                 #endif
                 .autocorrectionDisabled()
-            TextField("PHPSESSID(可选)", text: $phpSessionID)
+            TextField("fitness.score.php_sessid_label".localized, text: $phpSessionID)
                 #if os(iOS) || os(tvOS) || os(visionOS)
                 .textInputAutocapitalization(.never)
                 #endif
@@ -128,7 +128,7 @@ struct FitnessTestScoreView: View {
                     if isLoading {
                         ProgressView()
                     } else {
-                        Text("开始查询")
+                        Text("fitness.score.query_button".localized)
                     }
                     Spacer()
                 }
@@ -150,14 +150,14 @@ struct FitnessTestScoreView: View {
 
     @ViewBuilder
     private var resultSection: some View {
-        Section("成绩结果") {
+        Section("fitness.score.result_section".localized) {
             if let scoreData {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("\(scoreData.studentName) (\(scoreData.studentNum))")
                         .font(.headline)
-                    Text("\(scoreData.studentYear)  总分 \(scoreData.totalScore)  等级 \(scoreData.totalGrade)")
+                    Text(String(format: "fitness.score.summary_format".localized, scoreData.studentYear, scoreData.totalScore, scoreData.totalGrade))
                         .font(.subheadline)
-                    Text("状态: \(scoreData.reportStatus)")
+                    Text(String(format: "fitness.score.status_format".localized, scoreData.reportStatus))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -188,7 +188,7 @@ struct FitnessTestScoreView: View {
                     Spacer()
                 }
             } else {
-                Text("暂无数据")
+                Text("fitness.score.no_data".localized)
                     .foregroundStyle(.secondary)
             }
         }
@@ -201,11 +201,11 @@ struct FitnessTestScoreView: View {
         let trimmedToken = h5Token.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !trimmedStudentNum.isEmpty else {
-            await MainActor.run { errorMessage = "请先填写学号/卡号" }
+            await MainActor.run { errorMessage = "fitness.score.error_student_num_required".localized }
             return
         }
         guard !trimmedUID.isEmpty, !trimmedSchoolID.isEmpty, !trimmedToken.isEmpty else {
-            await MainActor.run { errorMessage = "UID / school_id / h5_token 不能为空" }
+            await MainActor.run { errorMessage = "fitness.score.error_config_required".localized }
             return
         }
 
@@ -237,7 +237,7 @@ struct FitnessTestScoreView: View {
         } catch {
             await MainActor.run {
                 isLoading = false
-                errorMessage = "查询失败: \(error.localizedDescription)"
+                errorMessage = String(format: "fitness.score.error_query_failed".localized, error.localizedDescription)
             }
         }
     }
@@ -302,7 +302,7 @@ struct FitnessTestScoreView: View {
             throw URLError(.cannotParseResponse)
         }
 
-        let info = jsonObject["info"] as? String ?? "未知响应"
+        let info = jsonObject["info"] as? String ?? "fitness.score.unknown_response".localized
         let parsedData: FitnessScoreData?
         if let rawData = jsonObject["data"] as? [String: Any], !rawData.isEmpty {
             parsedData = FitnessScoreData(dictionary: rawData)
@@ -346,43 +346,43 @@ private struct FitnessScoreData {
         self.reportStatus = stringValue("report_status")
         self.metrics = [
             FitnessMetric(
-                title: "BMI",
+                title: "fitness.metric.bmi".localized,
                 value: stringValue("bmi_score_new", fallback: stringValue("bmi_score")),
                 grade: stringValue("bmi_grade"),
                 className: stringValue("bmi_class")
             ),
             FitnessMetric(
-                title: "肺活量",
+                title: "fitness.metric.vital_capacity".localized,
                 value: stringValue("vc_score"),
                 grade: stringValue("vc_grade"),
                 className: stringValue("vc_class")
             ),
             FitnessMetric(
-                title: "立定跳远",
+                title: "fitness.metric.standing_jump".localized,
                 value: stringValue("jump_score"),
                 grade: stringValue("jump_grade"),
                 className: stringValue("jump_class")
             ),
             FitnessMetric(
-                title: "坐位体前屈",
+                title: "fitness.metric.sit_reach".localized,
                 value: stringValue("sit_and_reach_score"),
                 grade: stringValue("sit_and_reach_grade"),
                 className: stringValue("sit_and_reach_class")
             ),
             FitnessMetric(
-                title: "引体/仰卧",
+                title: "fitness.metric.pull_sit".localized,
                 value: stringValue("pull_and_sit_score"),
                 grade: stringValue("pull_and_sit_grade"),
                 className: stringValue("pull_and_sit_class")
             ),
             FitnessMetric(
-                title: "50 米",
+                title: "fitness.metric.sprint_50m".localized,
                 value: stringValue("50m_score"),
                 grade: stringValue("50m_grade"),
                 className: stringValue("50m_class")
             ),
             FitnessMetric(
-                title: "耐力跑",
+                title: "fitness.metric.endurance_run".localized,
                 value: stringValue("run_score"),
                 grade: stringValue("run_grade"),
                 className: stringValue("run_class")
