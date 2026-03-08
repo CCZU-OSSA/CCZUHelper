@@ -254,10 +254,12 @@ struct CCZUHelperApp: App {
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .active {
-                        WidgetDataManager.shared.syncTodayCoursesFromStore(container: sharedModelContainer)
-                        WatchConnectivitySyncManager.shared.pushLatestCoursesToWatch()
-                        ICloudSettingsSyncManager.shared.bootstrap(settings: appSettings)
-                        Task {
+                        // Delay non-UI critical sync work slightly so first frame is not blocked.
+                        Task(priority: .utility) {
+                            try? await Task.sleep(nanoseconds: 250_000_000)
+                            WidgetDataManager.shared.syncTodayCoursesFromStore(container: sharedModelContainer)
+                            WatchConnectivitySyncManager.shared.pushLatestCoursesToWatch()
+                            ICloudSettingsSyncManager.shared.bootstrap(settings: appSettings)
                             _ = await MembershipManager.shared.refreshEntitlement(settings: appSettings)
                             await DeviceTokenSyncManager.syncDeviceTokenIfPossible()
                             await NotificationHelper.resetBadgeAndDeliveredNotifications()
@@ -300,7 +302,7 @@ struct CCZUHelperApp: App {
     private func initializeModelContainerIfNeeded() async {
         guard !hasLoadedPersistentContainer, !isLoadingModelContainer else { return }
         isLoadingModelContainer = true
-        let container = await Task.detached(priority: .userInitiated) {
+        let container = await Task.detached(priority: .utility) {
             await Self.buildPersistentModelContainer()
         }.value
         sharedModelContainer = container
@@ -314,7 +316,11 @@ struct CCZUHelperApp: App {
         guard !didBootstrapApp else { return }
         didBootstrapApp = true
 
-        SwiftDataMigrationManager.runPostMigrationIfNeeded(container: container)
+        // Keep launch responsive: run migration and device sync tasks after first frame.
+        Task(priority: .utility) {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            SwiftDataMigrationManager.runPostMigrationIfNeeded(container: container)
+        }
         CCZUHelperShortcuts.updateAppShortcutParameters()
 
         Task {
@@ -326,17 +332,18 @@ struct CCZUHelperApp: App {
         SiriAuthorizationManager.requestIfNeeded()
         #endif
 
-        AccountSyncManager.autoRestoreAccountIfAvailable(settings: appSettings)
-        ICloudSettingsSyncManager.shared.bootstrap(settings: appSettings)
-
-        Task {
+        Task(priority: .utility) {
+            AccountSyncManager.autoRestoreAccountIfAvailable(settings: appSettings)
+            ICloudSettingsSyncManager.shared.bootstrap(settings: appSettings)
             _ = await MembershipManager.shared.refreshEntitlement(settings: appSettings)
         }
 
-        ElectricityManager.shared.setupScheduledUpdate(with: appSettings)
-        WidgetDataManager.shared.syncTodayCoursesFromStore(container: container)
-        WatchConnectivitySyncManager.shared.activate()
-        WatchConnectivitySyncManager.shared.pushLatestCoursesToWatch()
+        Task(priority: .utility) {
+            ElectricityManager.shared.setupScheduledUpdate(with: appSettings)
+            WidgetDataManager.shared.syncTodayCoursesFromStore(container: container)
+            WatchConnectivitySyncManager.shared.activate()
+            WatchConnectivitySyncManager.shared.pushLatestCoursesToWatch()
+        }
 
         #if canImport(StoreKit)
         if #available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, visionOS 1.0, *) {

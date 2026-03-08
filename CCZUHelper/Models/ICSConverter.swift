@@ -60,6 +60,9 @@ struct ICSConverter {
         let stampFormatter = DateFormatter()
         stampFormatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
         stampFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyyMMdd"
+        dateFormatter.timeZone = TimeZone.current
         
         guard let semesterWeekStart = calendar.dateInterval(of: .weekOfYear, for: settings.semesterStartDate)?.start else {
             return ""
@@ -76,9 +79,14 @@ struct ICSConverter {
             "NAME:\(schedule.name)"
         ]
         
+        // Collect all weeks used in courses
+        var usedWeeks = Set<Int>()
+        
         for course in courses {
             for week in course.weeks {
-                guard week > 0 else { continue }
+                guard week > 0 && week <= 22 else { continue }
+                usedWeeks.insert(week)
+                
                 let dayOffset = (week - 1) * 7 + (course.dayOfWeek % 7)
                 guard let day = calendar.date(byAdding: .day, value: dayOffset, to: semesterWeekStart) else { continue }
                 let startMinutes = settings.timeSlotToMinutes(course.timeSlot)
@@ -88,20 +96,47 @@ struct ICSConverter {
                 guard let startDate = calendar.date(bySettingHour: startHour, minute: startMinute, second: 0, of: day) else { continue }
                 guard let endDate = calendar.date(byAdding: .minute, value: durationMinutes, to: startDate) else { continue }
                 let uid = "\(course.id)_week\(week)"
+                let cleanedTeacher = removeEdupalMark(from: course.teacher)
+                let icsLocation = convertLocationForICS(from: course.location)
                 lines.append(contentsOf: [
                     "BEGIN:VEVENT",
                     "UID:\(uid)",
                     "DTSTAMP:\(stampFormatter.string(from: Date()))",
                     "SUMMARY:\(escapeICS(course.name))",
-                    "DESCRIPTION:\(escapeICS(course.teacher))",
+                    "DESCRIPTION:\(escapeICS(cleanedTeacher))",
                     "DTSTART;TZID=\(tzid):\(formatter.string(from: startDate))",
                     "DTEND;TZID=\(tzid):\(formatter.string(from: endDate))",
-                    "LOCATION:\(escapeICS(course.location))",
+                    "LOCATION:\(escapeICS(icsLocation))",
                     "SEQUENCE:0",
                     "TRANSP:OPAQUE",
                     "END:VEVENT"
                 ])
             }
+        }
+        
+        // Add all-day events for semester weeks
+        for week in 1...min(22, usedWeeks.max() ?? 1) {
+            // Calculate the date of the week start day for this week
+            let weekStartDayValue = settings.weekStartDay.rawValue
+            let dayOffset = (week - 1) * 7 + (weekStartDayValue % 7)
+            guard let weekStartDate = calendar.date(byAdding: .day, value: dayOffset, to: semesterWeekStart) else { continue }
+            let weekEndDate = calendar.date(byAdding: .day, value: 7, to: weekStartDate) ?? weekStartDate
+            
+            let uid = "semester_week_\(week)"
+            let dateStr = dateFormatter.string(from: weekStartDate)
+            let endDateStr = dateFormatter.string(from: weekEndDate)
+            
+            lines.append(contentsOf: [
+                "BEGIN:VEVENT",
+                "UID:\(uid)",
+                "DTSTAMP:\(stampFormatter.string(from: Date()))",
+                "SUMMARY:第\(week)周",
+                "DTSTART;VALUE=DATE:\(dateStr)",
+                "DTEND;VALUE=DATE:\(endDateStr)",
+                "TRANSP:TRANSPARENT",
+                "SEQUENCE:0",
+                "END:VEVENT"
+            ])
         }
         
         lines.append("END:VCALENDAR")
@@ -142,6 +177,25 @@ struct ICSConverter {
     }
     
     // MARK: - Helpers
+    private static func removeEdupalMark(from text: String) -> String {
+        text.replacingOccurrences(of: "[Edupal]", with: "").trimmingCharacters(in: .whitespaces)
+    }
+    
+    private static func convertLocationForICS(from text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = trimmed.first else { return trimmed }
+
+        let suffix = String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces)
+        switch first.lowercased() {
+        case "x":
+            return "常州大学西太湖校区" + suffix
+        case "w":
+            return "常州大学武进校区" + suffix
+        default:
+            return trimmed
+        }
+    }
+    
     private static func buildTermName(for date: Date) -> String {
         let calendar = Calendar.current
         let year = calendar.component(.year, from: date)
