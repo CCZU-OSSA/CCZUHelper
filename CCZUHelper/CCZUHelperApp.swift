@@ -255,14 +255,17 @@ struct CCZUHelperApp: App {
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .active {
                         // Delay non-UI critical sync work slightly so first frame is not blocked.
-                        Task(priority: .utility) {
+                        Task.detached(priority: .utility) { [sharedModelContainer] in
                             try? await Task.sleep(nanoseconds: 250_000_000)
                             WidgetDataManager.shared.syncTodayCoursesFromStore(container: sharedModelContainer)
                             WatchConnectivitySyncManager.shared.pushLatestCoursesToWatch()
-                            ICloudSettingsSyncManager.shared.bootstrap(settings: appSettings)
-                            _ = await MembershipManager.shared.refreshEntitlement(settings: appSettings)
                             await DeviceTokenSyncManager.syncDeviceTokenIfPossible()
                             await NotificationHelper.resetBadgeAndDeliveredNotifications()
+                        }
+
+                        Task { @MainActor in
+                            ICloudSettingsSyncManager.shared.bootstrap(settings: appSettings)
+                            _ = await MembershipManager.shared.refreshEntitlement(settings: appSettings)
                         }
 
                         #if os(iOS) && canImport(ActivityKit)
@@ -317,7 +320,7 @@ struct CCZUHelperApp: App {
         didBootstrapApp = true
 
         // Keep launch responsive: run migration and device sync tasks after first frame.
-        Task(priority: .utility) {
+        Task.detached(priority: .utility) { [container] in
             try? await Task.sleep(nanoseconds: 200_000_000)
             SwiftDataMigrationManager.runPostMigrationIfNeeded(container: container)
         }
@@ -338,8 +341,11 @@ struct CCZUHelperApp: App {
             _ = await MembershipManager.shared.refreshEntitlement(settings: appSettings)
         }
 
-        Task(priority: .utility) {
+        Task { @MainActor in
             ElectricityManager.shared.setupScheduledUpdate(with: appSettings)
+        }
+
+        Task.detached(priority: .utility) { [container] in
             WidgetDataManager.shared.syncTodayCoursesFromStore(container: container)
             WatchConnectivitySyncManager.shared.activate()
             WatchConnectivitySyncManager.shared.pushLatestCoursesToWatch()
