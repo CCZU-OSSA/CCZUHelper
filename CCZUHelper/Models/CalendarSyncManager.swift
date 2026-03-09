@@ -17,8 +17,34 @@ import AppKit
 struct CalendarSyncManager {
     private static let eventStore = EKEventStore()
     private static let calendarIdentifierKey = "calendarSync.calendarIdentifier"
+    private static let managedCalendarOwnedKey = "calendarSync.managedCalendarOwned"
     private static let eventURLScheme = "edupal://schedule"
     private static let notesPrefix = "[EduPal] "
+
+    private static func sanitizedTeacherNotes(_ teacher: String) -> String? {
+        let cleaned = teacher
+            .replacingOccurrences(of: "[EduPal]", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
+    /// 重同步时仅清理当前同步目标日历中的受管事件
+    private static func clearManagedEventsForResync(primaryCalendar: EKCalendar) throws {
+        let predicate = eventStore.predicateForEvents(
+            withStart: Date.distantPast,
+            end: Date.distantFuture,
+            calendars: [primaryCalendar]
+        )
+        let events = eventStore.events(matching: predicate)
+        for event in events {
+            let hasURLMark = (event.url?.absoluteString == eventURLScheme)
+            let hasLegacyNotesMark = (event.notes?.hasPrefix(notesPrefix) ?? false)
+            let isWeekMarker = event.isAllDay && event.title.hasPrefix("第") && event.title.hasSuffix("周")
+            if hasURLMark || hasLegacyNotesMark || isWeekMarker {
+                try eventStore.remove(event, span: .thisEvent, commit: false)
+            }
+        }
+    }
     
     /// 查找已存在的 CCZUHelper 日历（不创建新日历）
     private static func findExistingCCZUHelperCalendars() -> [EKCalendar] {
@@ -82,6 +108,7 @@ struct CalendarSyncManager {
             do {
                 try eventStore.saveCalendar(calendar, commit: true)
                 UserDefaults.standard.set(calendar.calendarIdentifier, forKey: calendarIdentifierKey)
+                UserDefaults.standard.set(true, forKey: managedCalendarOwnedKey)
                 return calendar
             } catch {
                 // 创建失败（如 Code=17），继续回退到已有可写日历
@@ -89,13 +116,38 @@ struct CalendarSyncManager {
         }
         if let defaultCalendar = eventStore.defaultCalendarForNewEvents, defaultCalendar.allowsContentModifications {
             UserDefaults.standard.set(defaultCalendar.calendarIdentifier, forKey: calendarIdentifierKey)
+            UserDefaults.standard.set(false, forKey: managedCalendarOwnedKey)
             return defaultCalendar
         }
         if let writable = eventStore.calendars(for: .event).first(where: { $0.allowsContentModifications }) {
             UserDefaults.standard.set(writable.calendarIdentifier, forKey: calendarIdentifierKey)
+            UserDefaults.standard.set(false, forKey: managedCalendarOwnedKey)
             return writable
         }
         throw SyncError.calendarNotFound
+    }
+
+    /// 获取由应用管理并可删除的日历（关闭同步时使用）
+    private static func managedCalendarsForDeletion() -> [EKCalendar] {
+        var result: [EKCalendar] = []
+        let calendars = eventStore.calendars(for: .event)
+        let owned = UserDefaults.standard.bool(forKey: managedCalendarOwnedKey)
+        let savedID = UserDefaults.standard.string(forKey: calendarIdentifierKey)
+
+        // 首选：删除标题为 EduPal 的专用日历
+        for cal in calendars where cal.title == "EduPal" {
+            result.append(cal)
+        }
+
+        // 兜底：若明确标记为应用创建，补充 savedID 对应日历
+        if owned,
+           let savedID,
+           let saved = eventStore.calendar(withIdentifier: savedID),
+           !result.contains(where: { $0.calendarIdentifier == saved.calendarIdentifier }) {
+            result.append(saved)
+        }
+
+        return result
     }
     
     /// 同步课程到系统日历
@@ -107,6 +159,16 @@ struct CalendarSyncManager {
         guard let semesterWeekStart = calendarUtil.dateInterval(of: .weekOfYear, for: settings.semesterStartDate)?.start else {
             throw SyncError.calendarNotFound
         }
+
+        let weekNumbers = Set(
+            courses
+                .flatMap { $0.weeks }
+                .filter { $0 > 0 }
+        )
+
+        // 重同步前先清掉所有 EduPal 相关旧事件，避免课程/周标记重复叠加。
+        try clearManagedEventsForResync(primaryCalendar: calendar)
+
         for course in courses {
             for week in course.weeks where week > 0 {
                 let dayOffset = (week - 1) * 7 + (course.dayOfWeek % 7)
@@ -122,12 +184,7 @@ struct CalendarSyncManager {
                 event.timeZone = tz
                 event.title = course.name
                 event.location = course.location
-                let teacher = course.teacher
-                if !teacher.isEmpty {
-                    event.notes = notesPrefix + teacher
-                } else {
-                    event.notes = notesPrefix
-                }
+                event.notes = sanitizedTeacherNotes(course.teacher)
                 if let url = URL(string: eventURLScheme) {
                     event.url = url
                 }
@@ -136,6 +193,30 @@ struct CalendarSyncManager {
                 try eventStore.save(event, span: .thisEvent, commit: false)
             }
         }
+
+        // 额外同步“第几周”全天事件（每周持续一周）
+        // 对 EventKit 全天事件，部分客户端会将结束日按“包含边界日”显示，
+        // 因此这里使用“开始日 + 6天”的结束日期，确保周起始日不会出现双周重叠。
+        for week in weekNumbers.sorted() {
+            let weekStartDayOffset = (week - 1) * 7 + (settings.weekStartDay.rawValue % 7)
+            guard let weekStartDate = calendarUtil.date(byAdding: .day, value: weekStartDayOffset, to: semesterWeekStart) else { continue }
+            let startOfDay = calendarUtil.startOfDay(for: weekStartDate)
+            guard let endDate = calendarUtil.date(byAdding: .day, value: 6, to: startOfDay) else { continue }
+
+            let weekEvent = EKEvent(eventStore: eventStore)
+            weekEvent.calendar = calendar
+            weekEvent.timeZone = nil
+            weekEvent.isAllDay = true
+            weekEvent.title = "第\(week)周"
+            weekEvent.notes = nil
+            if let url = URL(string: eventURLScheme) {
+                weekEvent.url = url
+            }
+            weekEvent.startDate = startOfDay
+            weekEvent.endDate = endDate
+            try eventStore.save(weekEvent, span: .thisEvent, commit: false)
+        }
+
         try eventStore.commit()
     }
     
@@ -185,9 +266,34 @@ struct CalendarSyncManager {
     /// 当用户关闭“同步到日历”时调用，删除日历中的所有课表
     static func disableSyncAndClear() async {
         do {
+            try await requestFullAccess()
             try await clearAllEvents()
+
+            let calendars = managedCalendarsForDeletion()
+            guard !calendars.isEmpty else {
+                UserDefaults.standard.removeObject(forKey: calendarIdentifierKey)
+                UserDefaults.standard.removeObject(forKey: managedCalendarOwnedKey)
+                return
+            }
+
+            for calendar in calendars where calendar.allowsContentModifications {
+                do {
+                    try eventStore.removeCalendar(calendar, commit: false)
+                } catch {
+                    // 单个日历删除失败不影响后续删除
+                }
+            }
+
+            do {
+                try eventStore.commit()
+            } catch {
+                // commit 失败时保持静默，避免打断用户关闭开关流程
+            }
+
+            UserDefaults.standard.removeObject(forKey: calendarIdentifierKey)
+            UserDefaults.standard.removeObject(forKey: managedCalendarOwnedKey)
         } catch {
-            // 已在 clearAllEvents 内部进行错误处理，这里无需额外处理
+            // 关闭流程不抛错到 UI
         }
     }
     
