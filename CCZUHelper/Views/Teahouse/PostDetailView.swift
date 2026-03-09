@@ -663,7 +663,7 @@ struct PostDetailView: View {
                 print("teahouse.like.error".localized(with: error.localizedDescription))
             }
 
-            DispatchQueue.main.async {
+            await MainActor.run {
                 checkLikeStatus()
                 NotificationCenter.default.post(name: NSNotification.Name("TeahouseLikeToggled"), object: nil)
             }

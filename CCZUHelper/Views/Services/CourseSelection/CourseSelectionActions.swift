@@ -138,7 +138,7 @@ extension CourseSelectionView {
     func submitSelection() async {
         guard !isSubmitting else { return }
         await MainActor.run { isSubmitting = true }
-        defer { Task { @MainActor in isSubmitting = false } }
+        defer { isSubmitting = false }
 
         do {
             let app = try await settings.ensureJwqywxLoggedIn()
@@ -180,7 +180,7 @@ extension CourseSelectionView {
     func submitGeneralSelection() async {
         guard !isSubmitting else { return }
         await MainActor.run { isSubmitting = true }
-        defer { Task { @MainActor in isSubmitting = false } }
+        defer { isSubmitting = false }
 
         do {
             let app = try await settings.ensureJwqywxLoggedIn()
@@ -233,7 +233,7 @@ extension CourseSelectionView {
     func dropAllSelectedCourses() async {
         guard !isSubmitting else { return }
         await MainActor.run { isSubmitting = true }
-        defer { Task { @MainActor in isSubmitting = false } }
+        defer { isSubmitting = false }
 
         do {
             let app = try await settings.ensureJwqywxLoggedIn()
@@ -251,7 +251,7 @@ extension CourseSelectionView {
     func dropSelectedGeneralCourses() async {
         guard !isSubmitting else { return }
         await MainActor.run { isSubmitting = true }
-        defer { Task { @MainActor in isSubmitting = false } }
+        defer { isSubmitting = false }
 
         do {
             let app = try await settings.ensureJwqywxLoggedIn()
