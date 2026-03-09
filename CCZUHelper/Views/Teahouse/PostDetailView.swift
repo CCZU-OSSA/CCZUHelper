@@ -43,6 +43,8 @@ struct PostDetailView: View {
     @State private var showLoginPrompt = false
     @State private var comments: [CommentWithProfile] = []
     @State private var isLoadingComments = false
+    @State private var hasLoadedComments = false
+    @State private var commentLoadingTask: Task<Void, Never>? = nil
     @State private var selectedImageIndex: Int = 0
     @State private var showImagePreview = false
     @State private var isAnonymous = false
@@ -76,6 +78,8 @@ struct PostDetailView: View {
     @State private var showCommentImagePicker = false
     
     @StateObject var teahouseService = TeahouseService()
+
+    private let minimumSkeletonDisplayNanos: UInt64 = 300_000_000
     
     private var isAuthorPrivileged: Bool {
         return post.isAuthorPrivileged == true
@@ -99,7 +103,6 @@ struct PostDetailView: View {
         if let authorId = post.authorId, authorId == currentUserId {
             return true
         }
-        // 兼容历史本地数据：authorId 可能存的是用户名而非 UUID
         if let authorId = post.authorId, let username = settings.username, authorId == username {
             return true
         }
@@ -269,7 +272,21 @@ struct PostDetailView: View {
                 .padding(.vertical, 8)
 
             // 评论区
-            if comments.isEmpty && !isLoadingComments {
+            if shouldShowCommentSkeleton {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(skeletonBaseColor)
+                            .frame(width: 96, height: 10)
+                    }
+                    CommentSkeletonListView(baseColor: skeletonBaseColor)
+                }
+                    .modifier(ShimmerModifier(highlightColor: skeletonHighlightColor))
+                    .allowsHitTesting(false)
+                    .padding(.vertical, 8)
+            } else if comments.isEmpty {
                 Text("teahouse.post.no_comments".localized)
                     .foregroundStyle(.secondary)
                     .font(.subheadline)
@@ -298,6 +315,18 @@ struct PostDetailView: View {
             guard !path.isEmpty else { return nil }
             return URL(string: path)
         }
+    }
+
+    private var shouldShowCommentSkeleton: Bool {
+        isLoadingComments || !hasLoadedComments
+    }
+
+    private var skeletonBaseColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.22) : Color.black.opacity(0.16)
+    }
+
+    private var skeletonHighlightColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.45) : Color.white.opacity(0.95)
     }
 
     @ViewBuilder
@@ -445,6 +474,8 @@ struct PostDetailView: View {
         rootContentView
         .onAppear {
             selectedImageIndex = 0
+            comments = []
+            hasLoadedComments = false
             loadComments()
             updateSummarizationAvailability()
             checkLikeStatus()
@@ -454,9 +485,14 @@ struct PostDetailView: View {
         }
         .onChange(of: post.id) { _, _ in
             checkLikeStatus()
+            comments = []
+            hasLoadedComments = false
+            loadComments()
         }
         .onDisappear {
             selectedImageIndex = 0
+            commentLoadingTask?.cancel()
+            commentLoadingTask = nil
             summaryText = nil
             summarizeError = nil
             ImageCache.default.clearMemoryCache()
@@ -659,21 +695,37 @@ struct PostDetailView: View {
     }
     
     private func loadComments() {
+        commentLoadingTask?.cancel()
         isLoadingComments = true
-        Task {
+        let loadingStartedAt = ContinuousClock.now
+
+        commentLoadingTask = Task {
             do {
                 let fetchedComments = try await PostDetailOperations.fetchComments(
                     service: teahouseService,
                     postId: post.id
                 )
+
+                let elapsed = loadingStartedAt.duration(to: .now)
+                if elapsed < .nanoseconds(Int64(minimumSkeletonDisplayNanos)) {
+                    let remaining = .nanoseconds(Int64(minimumSkeletonDisplayNanos)) - elapsed
+                    try? await Task.sleep(for: remaining)
+                }
+
+                if Task.isCancelled { return }
+
                 await MainActor.run {
                     comments = fetchedComments
                     isLoadingComments = false
+                    hasLoadedComments = true
                 }
             } catch {
+                if Task.isCancelled { return }
+
                 await MainActor.run {
                     print("teahouse.comment.load_error".localized(with: error.localizedDescription))
                     isLoadingComments = false
+                    hasLoadedComments = true
                 }
             }
         }
@@ -775,5 +827,88 @@ struct PostDetailView: View {
             }
         }
 #endif
+    }
+}
+
+private struct CommentSkeletonListView: View {
+    let baseColor: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(0..<4, id: \.self) { _ in
+                CommentSkeletonRow(baseColor: baseColor)
+            }
+        }
+    }
+}
+
+private struct CommentSkeletonRow: View {
+    let baseColor: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(baseColor)
+                    .frame(width: 32, height: 32)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(baseColor)
+                        .frame(width: 120, height: 12)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(baseColor)
+                        .frame(width: 80, height: 10)
+                }
+
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(baseColor)
+                    .frame(height: 12)
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(baseColor)
+                    .frame(width: 220, height: 12)
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(baseColor.opacity(0.35))
+        )
+    }
+}
+
+private struct ShimmerModifier: ViewModifier {
+    let highlightColor: Color
+    @State private var phase: CGFloat = -1
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                GeometryReader { proxy in
+                    let width = proxy.size.width
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            highlightColor.opacity(0),
+                            highlightColor,
+                            highlightColor.opacity(0)
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: width * 1.5)
+                    .offset(x: phase * width)
+                }
+                .blendMode(.screen)
+            }
+            .mask(content)
+            .onAppear {
+                withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
+                    phase = 1
+                }
+            }
     }
 }

@@ -345,7 +345,7 @@ struct UserSettingsView: View {
                     }
                 }
             } else {
-                try await CalendarSyncManager.clearAllEvents()
+                await CalendarSyncManager.disableSyncAndClear()
             }
         }
     }
