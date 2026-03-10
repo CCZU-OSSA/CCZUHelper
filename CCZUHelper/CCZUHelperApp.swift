@@ -354,8 +354,13 @@ struct CCZUHelperApp: App {
                 appSettings.userDisplayName = result.displayName
                 print("✅ Auto-restored account: \(result.displayName)")
             case .invalidCredentials:
-                appSettings.isLoggedIn = false
+                // 凭证无效时仅删除 iCloud Keychain，保留本地登陆状态显示
+                // 用户可在设置中手动登出，或尝试重新登陆
+                print("⚠️ Stored credentials are invalid, clearing them. User may need to login again.")
+                // 不设置 isLoggedIn = false，保留现有状态让用户看到
             case .unavailable:
+                // iCloud Keychain 无数据时，保留本地的登陆状态
+                // 可能是首次登陆、iCloud 不可用或未启用同步
                 break
             }
 
