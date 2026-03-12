@@ -64,16 +64,15 @@ struct TeahouseView: View {
                             }
 
                             ForEach(filteredPosts, id: \.id) { post in
-                            NavigationLink {
-                                PostDetailView(post: post)
-                                    .environmentObject(authViewModel)
-                            } label: {
-                                PostRow(post: post, isLiked: likedPostIDs.contains(post.id), onLike: {
-                                    toggleLike(post)
-                                })
-                                .padding(.horizontal, 16)
-                                .modifier(TeahousePostScrollTransition())
-                            }
+                                Button {
+                                    openPostDetailFromPush(postID: post.id)
+                                } label: {
+                                    PostRow(post: post, isLiked: likedPostIDs.contains(post.id), onLike: {
+                                        toggleLike(post)
+                                    })
+                                    .padding(.horizontal, 16)
+                                    .modifier(TeahousePostScrollTransition())
+                                }
                                 .buttonStyle(.plain)
                                 .padding(.vertical, 8)
 
@@ -267,22 +266,41 @@ struct TeahouseView: View {
                 }
             }
             .refreshable { await loadTeahouseContent(force: true, showRefreshIndicator: true) }
-            .navigationDestination(item: $pushSelectedPostID) { postID in
-                Group {
-                    if let post = allPosts.first(where: { $0.id == postID }) {
-                        PostDetailView(post: post)
-                            .environmentObject(authViewModel)
-                    } else {
-                        ContentUnavailableView {
-                            Label("teahouse.load_failed".localized, systemImage: "exclamationmark.triangle")
-                        } description: {
-                            Text("teahouse.no_posts_hint".localized)
-                        } actions: {
-                            Button("teahouse.retry".localized) {
-                                Task {
-                                    pendingPushPostID = postID
-                                    await resolvePendingPushRouteIfNeeded()
+            .fullScreenCover(
+                isPresented: Binding(
+                    get: { pushSelectedPostID != nil },
+                    set: { if !$0 { pushSelectedPostID = nil } }
+                )
+            ) {
+                NavigationStack {
+                    Group {
+                        if let postID = pushSelectedPostID,
+                           let post = allPosts.first(where: { $0.id == postID }) {
+                            PostDetailView(post: post)
+                                .environmentObject(authViewModel)
+                        } else {
+                            ContentUnavailableView {
+                                Label("teahouse.load_failed".localized, systemImage: "exclamationmark.triangle")
+                            } description: {
+                                Text("teahouse.no_posts_hint".localized)
+                            } actions: {
+                                Button("teahouse.retry".localized) {
+                                    Task {
+                                        if let postID = pushSelectedPostID {
+                                            pendingPushPostID = postID
+                                            await resolvePendingPushRouteIfNeeded()
+                                        }
+                                    }
                                 }
+                            }
+                        }
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button {
+                                pushSelectedPostID = nil
+                            } label: {
+                                Image(systemName: "xmark")
                             }
                         }
                     }
