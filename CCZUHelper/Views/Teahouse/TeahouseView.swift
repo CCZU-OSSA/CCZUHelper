@@ -266,43 +266,54 @@ struct TeahouseView: View {
                 }
             }
             .refreshable { await loadTeahouseContent(force: true, showRefreshIndicator: true) }
+            #if os(macOS)
+            .sheet(
+                isPresented: Binding(
+                    get: { pushSelectedPostID != nil },
+                    set: { if !$0 { pushSelectedPostID = nil } }
+                )
+            ) { postDetailCoverContent }
+            #else
             .fullScreenCover(
                 isPresented: Binding(
                     get: { pushSelectedPostID != nil },
                     set: { if !$0 { pushSelectedPostID = nil } }
                 )
-            ) {
-                NavigationStack {
-                    Group {
-                        if let postID = pushSelectedPostID,
-                           let post = allPosts.first(where: { $0.id == postID }) {
-                            PostDetailView(post: post)
-                                .environmentObject(authViewModel)
-                        } else {
-                            ContentUnavailableView {
-                                Label("teahouse.load_failed".localized, systemImage: "exclamationmark.triangle")
-                            } description: {
-                                Text("teahouse.no_posts_hint".localized)
-                            } actions: {
-                                Button("teahouse.retry".localized) {
-                                    Task {
-                                        if let postID = pushSelectedPostID {
-                                            pendingPushPostID = postID
-                                            await resolvePendingPushRouteIfNeeded()
-                                        }
-                                    }
+            ) { postDetailCoverContent }
+            #endif
+        }
+    }
+
+    @ViewBuilder private var postDetailCoverContent: some View {
+        NavigationStack {
+            Group {
+                if let postID = pushSelectedPostID,
+                   let post = allPosts.first(where: { $0.id == postID }) {
+                    PostDetailView(post: post)
+                        .environmentObject(authViewModel)
+                } else {
+                    ContentUnavailableView {
+                        Label("teahouse.load_failed".localized, systemImage: "exclamationmark.triangle")
+                    } description: {
+                        Text("teahouse.no_posts_hint".localized)
+                    } actions: {
+                        Button("teahouse.retry".localized) {
+                            Task {
+                                if let postID = pushSelectedPostID {
+                                    pendingPushPostID = postID
+                                    await resolvePendingPushRouteIfNeeded()
                                 }
                             }
                         }
                     }
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button {
-                                pushSelectedPostID = nil
-                            } label: {
-                                Image(systemName: "xmark")
-                            }
-                        }
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        pushSelectedPostID = nil
+                    } label: {
+                        Image(systemName: "xmark")
                     }
                 }
             }

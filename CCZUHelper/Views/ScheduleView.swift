@@ -222,7 +222,7 @@ struct ScheduleView: View {
 
     private var schedulePageBackground: Color {
         #if os(macOS)
-        Color(nsColor: .windowBackgroundColor)
+        settings.backgroundImageEnabled ? Color.clear : Color(nsColor: .windowBackgroundColor)
         #else
         let base = Color(uiColor: .secondarySystemGroupedBackground)
         return settings.backgroundImageEnabled ? base.opacity(0.02) : base
