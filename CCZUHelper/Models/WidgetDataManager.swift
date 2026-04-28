@@ -149,13 +149,15 @@ struct WidgetDataManager {
             let startDayInCalendar = (weekStartDay.rawValue % 7) + 1  // Convert to Calendar.weekday (1=Sunday)
             var daysFromSemesterStart = semesterWeekdayComponent - startDayInCalendar
             if daysFromSemesterStart < 0 { daysFromSemesterStart += 7 }
-            let semesterWeekStart = calendar.date(byAdding: .day, value: -daysFromSemesterStart, to: semesterStartDate) ?? semesterStartDate
+            let semesterWeekStartRaw = calendar.date(byAdding: .day, value: -daysFromSemesterStart, to: semesterStartDate) ?? semesterStartDate
+            let semesterWeekStart = calendar.startOfDay(for: semesterWeekStartRaw)
             
             // 计算今天所在周的开始日期
             let todayWeekdayComponent = calendar.component(.weekday, from: today)
             var daysFromTodayStart = todayWeekdayComponent - startDayInCalendar
             if daysFromTodayStart < 0 { daysFromTodayStart += 7 }
-            let todayWeekStart = calendar.date(byAdding: .day, value: -daysFromTodayStart, to: today) ?? today
+            let todayWeekStartRaw = calendar.date(byAdding: .day, value: -daysFromTodayStart, to: today) ?? today
+            let todayWeekStart = calendar.startOfDay(for: todayWeekStartRaw)
             
             // 计算周数
             let daysBetween = calendar.dateComponents([.day], from: semesterWeekStart, to: todayWeekStart).day ?? 0
